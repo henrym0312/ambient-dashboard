@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
 import Parser from 'rss-parser';
 import ical from 'node-ical';
-import fs from 'fs';
-import path from 'path';
 
 export async function GET(req: Request) {
   const _skipPrerender = new URL(req.url);
@@ -19,105 +17,91 @@ export async function GET(req: Request) {
     const weatherData = await weatherRes.json();
     const aqiData = await aqiRes.json();
 
-    // 2. Fetch Oura Metrics using the secure repository store file
+    // 2. Fetch Oura Metrics
     let oura: any = { readiness: '--', sleep: '--', steps: '--', stress: '--', history: [] };
-    const storePath = path.join(process.cwd(), 'oura-store.json');
-    let tokenData: any = null;
+    
+    // PASTE YOUR FRESH REFRESH TOKEN STRING DIRECTLY HERE FOR 100% RELIABILITY ON VERCEL:
+    const HARDCODED_REFRESH_TOKEN = "PASTE_YOUR_REFRESH_TOKEN_HERE"; 
 
-    if (fs.existsSync(storePath)) {
-      try {
-        tokenData = JSON.parse(fs.readFileSync(storePath, 'utf8'));
-      } catch (e) {}
-    }
+    try {
+      const tokenRefreshRes = await fetch('https://api.ouraring.com/oauth/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'AmbientDashboard/1.0' },
+        body: new URLSearchParams({
+          grant_type: 'refresh_token',
+          client_id: process.env.OURA_CLIENT_ID || '',
+          client_secret: process.env.OURA_CLIENT_SECRET || '',
+          refresh_token: HARDCODED_REFRESH_TOKEN
+        })
+      });
+      
+      const tokenData = await tokenRefreshRes.json();
+      
+      if (tokenData.access_token) {
+        const now = new Date();
+        const past = new Date();
+        past.setDate(past.getDate() - 8);
+        const endDate = now.toISOString().split('T')[0];
+        const startDate = past.toISOString().split('T')[0];
+        const headers = { 'Authorization': `Bearer ${tokenData.access_token}`, 'User-Agent': 'AmbientDashboard/1.0' };
+        
+        const [readinessRes, sleepRes, activityRes, stressRes, sleepPeriodsRes] = await Promise.all([
+          fetch(`https://api.ouraring.com/v2/usercollection/daily_readiness?start_date=${startDate}&end_date=${endDate}`, { headers }),
+          fetch(`https://api.ouraring.com/v2/usercollection/daily_sleep?start_date=${startDate}&end_date=${endDate}`, { headers }),
+          fetch(`https://api.ouraring.com/v2/usercollection/daily_activity?start_date=${startDate}&end_date=${endDate}`, { headers }),
+          fetch(`https://api.ouraring.com/v2/usercollection/daily_stress?start_date=${startDate}&end_date=${endDate}`, { headers }),
+          fetch(`https://api.ouraring.com/v2/usercollection/sleep?start_date=${startDate}&end_date=${endDate}`, { headers })
+        ]);
 
-    if (tokenData && tokenData.refresh_token) {
-      try {
-        if (Date.now() > tokenData.expires_at) {
-          const refreshRes = await fetch('https://api.ouraring.com/oauth/token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'AmbientDashboard/1.0' },
-            body: new URLSearchParams({
-              grant_type: 'refresh_token',
-              client_id: process.env.OURA_CLIENT_ID || '',
-              client_secret: process.env.OURA_CLIENT_SECRET || '',
-              refresh_token: tokenData.refresh_token
-            })
-          });
-          const newTokens = await refreshRes.json();
-          if (newTokens.access_token) {
-            tokenData = {
-              access_token: newTokens.access_token,
-              refresh_token: newTokens.refresh_token || tokenData.refresh_token,
-              expires_at: Date.now() + ((newTokens.expires_in || 86400) * 1000) - 300000
-            };
-            try { fs.writeFileSync(storePath, JSON.stringify(tokenData)); } catch (e) {}
-          }
+        const readinessData = readinessRes.ok ? (await readinessRes.json()).data || [] : [];
+        const sleepData = sleepRes.ok ? (await sleepRes.json()).data || [] : [];
+        const activityData = activityRes.ok ? (await activityRes.json()).data || [] : [];
+        const stressData = stressRes.ok ? (await stressRes.json()).data || [] : [];
+        const sleepPeriodsData = sleepPeriodsRes.ok ? (await sleepPeriodsRes.json()).data || [] : [];
+
+        oura.readiness = readinessData[readinessData.length - 1]?.score ?? '--';
+        oura.sleep = sleepData[sleepData.length - 1]?.score ?? '--';
+        oura.steps = activityData[activityData.length - 1]?.steps ?? '--';
+        const stressHigh = stressData[stressData.length - 1]?.stress_high;
+        if (stressHigh !== undefined && stressHigh !== null) {
+          oura.stress = Math.round(stressHigh / 60).toString();
         }
 
-        if (tokenData.access_token) {
-          const now = new Date();
-          const past = new Date();
-          past.setDate(past.getDate() - 8);
-          const endDate = now.toISOString().split('T')[0];
-          const startDate = past.toISOString().split('T')[0];
-          const headers = { 'Authorization': `Bearer ${tokenData.access_token}`, 'User-Agent': 'AmbientDashboard/1.0' };
-          
-          const [readinessRes, sleepRes, activityRes, stressRes, sleepPeriodsRes] = await Promise.all([
-            fetch(`https://api.ouraring.com/v2/usercollection/daily_readiness?start_date=${startDate}&end_date=${endDate}`, { headers }),
-            fetch(`https://api.ouraring.com/v2/usercollection/daily_sleep?start_date=${startDate}&end_date=${endDate}`, { headers }),
-            fetch(`https://api.ouraring.com/v2/usercollection/daily_activity?start_date=${startDate}&end_date=${endDate}`, { headers }),
-            fetch(`https://api.ouraring.com/v2/usercollection/daily_stress?start_date=${startDate}&end_date=${endDate}`, { headers }),
-            fetch(`https://api.ouraring.com/v2/usercollection/sleep?start_date=${startDate}&end_date=${endDate}`, { headers })
-          ]);
-
-          const readinessData = readinessRes.ok ? (await readinessRes.json()).data || [] : [];
-          const sleepData = sleepRes.ok ? (await sleepRes.json()).data || [] : [];
-          const activityData = activityRes.ok ? (await activityRes.json()).data || [] : [];
-          const stressData = stressRes.ok ? (await stressRes.json()).data || [] : [];
-          const sleepPeriodsData = sleepPeriodsRes.ok ? (await sleepPeriodsRes.json()).data || [] : [];
-
-          oura.readiness = readinessData[readinessData.length - 1]?.score ?? '--';
-          oura.sleep = sleepData[sleepData.length - 1]?.score ?? '--';
-          oura.steps = activityData[activityData.length - 1]?.steps ?? '--';
-          const stressHigh = stressData[stressData.length - 1]?.stress_high;
-          if (stressHigh !== undefined && stressHigh !== null) {
-            oura.stress = Math.round(stressHigh / 60).toString();
-          }
-
-          const dayMap: Record<string, any> = {};
-          for (let i = 6; i >= 0; i--) {
-            const d = new Date();
-            d.setDate(d.getDate() - i);
-            const iso = d.toISOString().split('T')[0];
-            const label = d.toLocaleDateString('en-GB', { weekday: 'short' }).slice(0, 2);
-            dayMap[iso] = { day: iso, label, sleep: 0, readiness: 0, hours: 0 };
-          }
-
-          sleepData.forEach((item: any) => {
-            if (dayMap[item.day]) {
-              dayMap[item.day].sleep = item.score || 0;
-              if (!dayMap[item.day].hours && item.contributors?.total_sleep) {
-                dayMap[item.day].hours = Number(((item.contributors.total_sleep / 100) * 8.5).toFixed(1));
-              }
-            }
-          });
-
-          readinessData.forEach((item: any) => {
-            if (dayMap[item.day]) dayMap[item.day].readiness = item.score || 0;
-          });
-
-          sleepPeriodsData.forEach((item: any) => {
-            if (dayMap[item.day] && item.total_sleep_duration) {
-              const hrs = Number((item.total_sleep_duration / 3600).toFixed(1));
-              if (hrs > dayMap[item.day].hours) dayMap[item.day].hours = hrs;
-            }
-          });
-
-          oura.history = Object.values(dayMap);
+        const dayMap: Record<string, any> = {};
+        for (let i = 6; i >= 0; i--) {
+          const d = new Date();
+          d.setDate(d.getDate() - i);
+          const iso = d.toISOString().split('T')[0];
+          const label = d.toLocaleDateString('en-GB', { weekday: 'short' }).slice(0, 2);
+          dayMap[iso] = { day: iso, label, sleep: 0, readiness: 0, hours: 0 };
         }
-      } catch (e) {
-        console.error("Oura Error:", e);
+
+        sleepData.forEach((item: any) => {
+          if (dayMap[item.day]) {
+            dayMap[item.day].sleep = item.score || 0;
+            if (!dayMap[item.day].hours && item.contributors?.total_sleep) {
+              dayMap[item.day].hours = Number(((item.contributors.total_sleep / 100) * 8.5).toFixed(1));
+            }
+          }
+        });
+
+        readinessData.forEach((item: any) => {
+          if (dayMap[item.day]) dayMap[item.day].readiness = item.score || 0;
+        });
+
+        sleepPeriodsData.forEach((item: any) => {
+          if (dayMap[item.day] && item.total_sleep_duration) {
+            const hrs = Number((item.total_sleep_duration / 3600).toFixed(1));
+            if (hrs > dayMap[item.day].hours) dayMap[item.day].hours = hrs;
+          }
+        });
+
+        oura.history = Object.values(dayMap);
+      } else {
+        console.error("Oura Token Exchange Failed:", tokenData);
       }
+    } catch (e) {
+      console.error("Oura Fetch Exception:", e);
     }
 
     // 3. Fetch Google Calendars
