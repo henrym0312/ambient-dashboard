@@ -1,10 +1,12 @@
-export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import Parser from 'rss-parser';
 import ical from 'node-ical';
 import { kv } from '@vercel/kv';
+import fs from 'fs';
 
-export async function GET() {
+export async function GET(req: Request) {
+  const _skipPrerender = new URL(req.url);
+
   try {
     const lat = process.env.LATITUDE || '54.7761';
     const lon = process.env.LONGITUDE || '-1.5733';
@@ -18,8 +20,19 @@ export async function GET() {
     const aqiData = await aqiRes.json();
 
     let oura: any = { readiness: '--', sleep: '--', steps: '--', stress: '--', history: [] };
-    let tokenData: any = await kv.get('oura_tokens');
-    
+    const tmpPath = '/tmp/oura-tokens.json';
+    let tokenData: any = null;
+
+    try {
+      tokenData = await kv.get('oura_tokens');
+    } catch (e) {}
+
+    if (!tokenData && fs.existsSync(tmpPath)) {
+      try {
+        tokenData = JSON.parse(fs.readFileSync(tmpPath, 'utf8'));
+      } catch (e) {}
+    }
+
     if (!tokenData && process.env.OURA_REFRESH_TOKEN) {
       tokenData = { refresh_token: process.env.OURA_REFRESH_TOKEN, expires_at: 0 };
     }
@@ -44,7 +57,8 @@ export async function GET() {
               refresh_token: newTokens.refresh_token || tokenData.refresh_token,
               expires_at: Date.now() + ((newTokens.expires_in || 86400) * 1000) - 300000
             };
-            await kv.set('oura_tokens', tokenData);
+            try { fs.writeFileSync(tmpPath, JSON.stringify(tokenData)); } catch (e) {}
+            try { await kv.set('oura_tokens', tokenData); } catch (e) {}
           }
         }
 
@@ -138,6 +152,7 @@ export async function GET() {
           }
         });
       }
+
       calendarEvents = allEvents.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()).slice(0, 12);
     } catch (e) {}
 
