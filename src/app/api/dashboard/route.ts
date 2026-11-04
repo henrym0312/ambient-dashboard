@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import Parser from 'rss-parser';
 import ical from 'node-ical';
 import fs from 'fs';
+import path from 'path';
 
 export async function GET(req: Request) {
   const _skipPrerender = new URL(req.url);
@@ -10,7 +11,6 @@ export async function GET(req: Request) {
     const lat = process.env.LATITUDE || '54.7761';
     const lon = process.env.LONGITUDE || '-1.5733';
 
-    // 1. Fetch Weather & Air Quality
     const [weatherRes, aqiRes] = await Promise.all([
       fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,precipitation&timezone=auto`, { next: { revalidate: 900 } }),
       fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=european_aqi`, { next: { revalidate: 1800 } })
@@ -19,19 +19,15 @@ export async function GET(req: Request) {
     const weatherData = await weatherRes.json();
     const aqiData = await aqiRes.json();
 
-    // 2. Fetch Oura Metrics directly using the Vercel Environment Variable
+    // 2. Fetch Oura Metrics using the secure repository store file
     let oura: any = { readiness: '--', sleep: '--', steps: '--', stress: '--', history: [] };
-    const tmpPath = '/tmp/oura-tokens.json';
+    const storePath = path.join(process.cwd(), 'oura-store.json');
     let tokenData: any = null;
 
-    if (fs.existsSync(tmpPath)) {
+    if (fs.existsSync(storePath)) {
       try {
-        tokenData = JSON.parse(fs.readFileSync(tmpPath, 'utf8'));
+        tokenData = JSON.parse(fs.readFileSync(storePath, 'utf8'));
       } catch (e) {}
-    }
-
-    if (!tokenData && process.env.OURA_REFRESH_TOKEN) {
-      tokenData = { refresh_token: process.env.OURA_REFRESH_TOKEN, expires_at: 0 };
     }
 
     if (tokenData && tokenData.refresh_token) {
@@ -54,7 +50,7 @@ export async function GET(req: Request) {
               refresh_token: newTokens.refresh_token || tokenData.refresh_token,
               expires_at: Date.now() + ((newTokens.expires_in || 86400) * 1000) - 300000
             };
-            try { fs.writeFileSync(tmpPath, JSON.stringify(tokenData)); } catch (e) {}
+            try { fs.writeFileSync(storePath, JSON.stringify(tokenData)); } catch (e) {}
           }
         }
 
