@@ -214,93 +214,102 @@ export default function Dashboard() {
             </div>
             <div className="grid grid-cols-2 gap-2.5 flex-grow">
               <div className="bg-black/40 px-4 py-2.5 rounded-xl border border-white/5 flex items-center justify-between">
-                <span className="text-[20px] text-neutral-400 font-bold tracking-wider">READINESS</span>
+                <span className="text-[15px] text-neutral-400 font-bold tracking-wider">READINESS</span>
                 <span className="text-2xl font-black text-amber-400">{data?.oura?.readiness ?? '--'}</span>
               </div>
               <div className="bg-black/40 px-4 py-2.5 rounded-xl border border-white/5 flex items-center justify-between">
-                <span className="text-[20px] text-neutral-400 font-bold tracking-wider">SLEEP</span>
+                <span className="text-[15px] text-neutral-400 font-bold tracking-wider">SLEEP</span>
                 <span className="text-2xl font-black text-indigo-400">{data?.oura?.sleep ?? '--'}</span>
               </div>
               <div className="bg-black/40 px-4 py-2.5 rounded-xl border border-white/5 flex items-center justify-between">
-                <span className="text-[20px] text-neutral-400 font-bold tracking-wider">STEPS</span>
+                <span className="text-[15px] text-neutral-400 font-bold tracking-wider">STEPS</span>
                 <span className="text-2xl font-black text-emerald-400">{data?.oura?.steps && data.oura.steps !== '--' ? Number(data.oura.steps).toLocaleString() : '--'}</span>
 
 
               </div>
               <div className="bg-black/40 px-4 py-2.5 rounded-xl border border-white/5 flex items-center justify-between">
-                <span className="text-[10px] text-neutral-400 font-semibold tracking-wider">STRESS</span>
+                <span className="text-[15px] text-neutral-400 font-bold tracking-wider">STRESS</span>
                 <span className="text-2xl font-black text-rose-400">{data?.oura?.stress ?? '--'}<span className="text-xs font-normal text-neutral-400 ml-0.5">m</span></span>
               </div>
             </div>
           </div>
 
-          <div className="bg-white/5 border border-white/10 rounded-3xl p-5 flex flex-col justify-between flex-1 min-h-[200px]">
-            <div className="flex items-center justify-between text-neutral-400 mb-2 shrink-0">
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-xs tracking-wider uppercase">7-Day Oura Trends</span>
-                <span className="text-[10px] bg-white/10 text-neutral-300 px-2 py-0.5 rounded-md font-mono">Avg {avgHours}h</span>
+          <div className="bg-white/5 border border-white/10 rounded-3xl p-5 flex flex-col justify-between flex-1 min-h-[280px]">
+          <div className="flex items-center justify-between text-neutral-400 mb-4 shrink-0">
+            <div className="flex items-center gap-3">
+              <span className="font-bold text-sm tracking-wider uppercase text-white">7-Day Oura Trends</span>
+              <span className="text-xs bg-white/10 text-neutral-200 px-2.5 py-1 rounded-md font-mono font-bold">Avg {avgHours}h</span>
+            </div>
+            <BarChart3 className="w-5 h-5 text-indigo-400" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 flex-grow">
+            {/* Graph 1: Sleep vs Ready */}
+            <div className="bg-black/40 p-4 rounded-2xl border border-white/5 flex flex-col justify-between">
+              <div className="flex items-center justify-between text-[11px] text-neutral-300 font-bold uppercase tracking-wider mb-2">
+                <span>Sleep vs Ready</span>
+                <div className="flex items-center gap-3">
+                  <span className="flex items-center gap-1.5"><span className="w-4 h-2 rounded-full bg-indigo-400"></span>S</span>
+                  <span className="flex items-center gap-1.5"><span className="w-4 h-2 rounded-full bg-amber-400"></span>R</span>
+                </div>
               </div>
-              <BarChart3 className="w-4 h-4 text-indigo-400" />
+
+              {/* Increased height from h-20 to h-32 (128px) */}
+              <div className="flex items-end justify-between gap-2 h-32 pt-3">
+                {history.length > 0 ? history.map((d, i) => (
+                  <div key={i} className="flex flex-col items-center flex-1 h-full justify-end">
+                    <div className="flex items-end gap-1 w-full justify-center h-full">
+                      {/* Thickened bars from w-1.5 to w-3 */}
+                      <div
+                        className="w-3 bg-indigo-400 rounded-t-sm transition-all duration-500"
+                        style={{ height: `${Math.max(d.sleep || 8, 8)}%` }}
+                      />
+                      <div
+                        className="w-3 bg-amber-400 rounded-t-sm transition-all duration-500"
+                        style={{ height: `${Math.max(d.readiness || 8, 8)}%` }}
+                      />
+                    </div>
+                    {/* Increased text size for days of the week */}
+                    <span className="text-[10px] text-neutral-400 font-mono mt-2 uppercase font-bold">{d.label}</span>
+                  </div>
+                )) : <span className="text-sm text-neutral-600 m-auto">Syncing...</span>}
+              </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 flex-grow">
-              <div className="bg-black/40 p-3 rounded-2xl border border-white/5 flex flex-col justify-between">
-                <div className="flex items-center justify-between text-[9px] text-neutral-400 font-semibold uppercase tracking-wider">
-                  <span>Sleep vs Ready</span>
-                  <div className="flex items-center gap-2">
-                    <span className="flex items-center gap-1"><span className="w-4 h-1.5 rounded-full bg-indigo-400"></span>S</span>
-                    <span className="flex items-center gap-1"><span className="w-4 h-1.5 rounded-full bg-amber-400"></span>R</span>
-                  </div>
-                </div>
-
-                <div className="flex items-end justify-between gap-1.5 h-20 pt-2">
-                  {history.length > 0 ? history.map((d, i) => (
-                    <div key={i} className="flex flex-col items-center flex-1 h-full justify-end">
-                      <div className="flex items-end gap-0.5 w-full justify-center h-full">
-                        <div
-                          className="w-1.5 bg-indigo-400 rounded-t-sm transition-all duration-500"
-                          style={{ height: `${Math.max(d.sleep || 8, 8)}%` }}
-                        />
-                        <div
-                          className="w-1.5 bg-amber-400 rounded-t-sm transition-all duration-500"
-                          style={{ height: `${Math.max(d.readiness || 8, 8)}%` }}
-                        />
-                      </div>
-                      <span className="text-[8px] text-neutral-500 font-mono mt-1 uppercase">{d.label}</span>
-                    </div>
-                  )) : <span className="text-xs text-neutral-600 m-auto">Syncing...</span>}
-                </div>
+            {/* Graph 2: Hours Asleep */}
+            <div className="bg-black/40 p-4 rounded-2xl border border-white/5 flex flex-col justify-between">
+              <div className="flex items-center justify-between text-[11px] text-neutral-300 font-bold uppercase tracking-wider mb-2">
+                <span>Hours Asleep</span>
+                <span className="text-emerald-400 font-mono">8h Goal</span>
               </div>
 
-              <div className="bg-black/40 p-3 rounded-2xl border border-white/5 flex flex-col justify-between">
-                <div className="flex items-center justify-between text-[9px] text-neutral-400 font-semibold uppercase tracking-wider">
-                  <span>Hours Asleep</span>
-                  <span className="text-emerald-400 font-mono">8h Goal</span>
-                </div>
-
-                <div className="flex items-end justify-between gap-1.5 h-20 pt-2">
-                  {history.length > 0 ? history.map((d, i) => {
-                    const heightPct = Math.min(Math.max((d.hours / 10) * 100, 10), 100);
-                    const hitGoal = d.hours >= 7.5;
-                    return (
-                      <div key={i} className="flex flex-col items-center flex-1 h-full justify-end">
-                        <span className="text-[8px] text-neutral-400 font-mono mb-0.5">
-                          {d.hours > 0 ? d.hours : ''}
-                        </span>
-                        <div className="w-full flex justify-center items-end h-full">
-                          <div
-                            className={`w-2.5 rounded-t-sm transition-all duration-500 ${hitGoal ? 'bg-emerald-400' : 'bg-sky-400/70'}`}
-                            style={{ height: `${heightPct}%` }}
-                          />
-                        </div>
-                        <span className="text-[8px] text-neutral-500 font-mono mt-1 uppercase">{d.label}</span>
+              {/* Increased height from h-20 to h-32 (128px) */}
+              <div className="flex items-end justify-between gap-2 h-32 pt-3">
+                {history.length > 0 ? history.map((d, i) => {
+                  const heightPct = Math.min(Math.max((d.hours / 10) * 100, 10), 100);
+                  const hitGoal = d.hours >= 7.5;
+                  return (
+                    <div key={i} className="flex flex-col items-center flex-1 h-full justify-end">
+                      {/* Increased text size for the hour labels */}
+                      <span className="text-[11px] text-neutral-200 font-mono mb-1 font-bold">
+                        {d.hours > 0 ? d.hours : ''}
+                      </span>
+                      <div className="w-full flex justify-center items-end h-full">
+                        {/* Thickened bar from w-2.5 to w-5 */}
+                        <div
+                          className={`w-5 rounded-t-sm transition-all duration-500 ${hitGoal ? 'bg-emerald-400' : 'bg-sky-400/70'}`}
+                          style={{ height: `${heightPct}%` }}
+                        />
                       </div>
-                    );
-                  }) : <span className="text-xs text-neutral-600 m-auto">Syncing...</span>}
-                </div>
+                      <span className="text-[10px] text-neutral-400 font-mono mt-2 uppercase font-bold">{d.label}</span>
+                    </div>
+                  );
+                }) : <span className="text-sm text-neutral-600 m-auto">Syncing...</span>}
               </div>
             </div>
           </div>
+        </div>
+
 
         </div>
 

@@ -37,6 +37,4 @@ body {
 *:focus {
   outline: none !important;
 }
-::-webkit-scrollbar {
-  display: none;
-}
+
