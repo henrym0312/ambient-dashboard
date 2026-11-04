@@ -34,3 +34,9 @@ body {
   display: inline-block;
   animation: marquee 90s linear infinite;
 }
+*:focus {
+  outline: none !important;
+}
+::-webkit-scrollbar {
+  display: none;
+}

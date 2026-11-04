@@ -214,15 +214,15 @@ export default function Dashboard() {
             </div>
             <div className="grid grid-cols-2 gap-2.5 flex-grow">
               <div className="bg-black/40 px-4 py-2.5 rounded-xl border border-white/5 flex items-center justify-between">
-                <span className="text-[10px] text-neutral-400 font-semibold tracking-wider">READINESS</span>
+                <span className="text-[20px] text-neutral-400 font-bold tracking-wider">READINESS</span>
                 <span className="text-2xl font-black text-amber-400">{data?.oura?.readiness ?? '--'}</span>
               </div>
               <div className="bg-black/40 px-4 py-2.5 rounded-xl border border-white/5 flex items-center justify-between">
-                <span className="text-[10px] text-neutral-400 font-semibold tracking-wider">SLEEP</span>
+                <span className="text-[20px] text-neutral-400 font-bold tracking-wider">SLEEP</span>
                 <span className="text-2xl font-black text-indigo-400">{data?.oura?.sleep ?? '--'}</span>
               </div>
               <div className="bg-black/40 px-4 py-2.5 rounded-xl border border-white/5 flex items-center justify-between">
-                <span className="text-[10px] text-neutral-400 font-semibold tracking-wider">STEPS</span>
+                <span className="text-[20px] text-neutral-400 font-bold tracking-wider">STEPS</span>
                 <span className="text-2xl font-black text-emerald-400">{data?.oura?.steps && data.oura.steps !== '--' ? Number(data.oura.steps).toLocaleString() : '--'}</span>
 
 
@@ -234,7 +234,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="bg-white/5 border border-white/10 rounded-3xl p-5 flex flex-col justify-between flex-1">
+          <div className="bg-white/5 border border-white/10 rounded-3xl p-5 flex flex-col justify-between flex-1 min-h-[200px]">
             <div className="flex items-center justify-between text-neutral-400 mb-2 shrink-0">
               <div className="flex items-center gap-2">
                 <span className="font-semibold text-xs tracking-wider uppercase">7-Day Oura Trends</span>
@@ -248,8 +248,8 @@ export default function Dashboard() {
                 <div className="flex items-center justify-between text-[9px] text-neutral-400 font-semibold uppercase tracking-wider">
                   <span>Sleep vs Ready</span>
                   <div className="flex items-center gap-2">
-                    <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>S</span>
-                    <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>R</span>
+                    <span className="flex items-center gap-1"><span className="w-4 h-1.5 rounded-full bg-indigo-400"></span>S</span>
+                    <span className="flex items-center gap-1"><span className="w-4 h-1.5 rounded-full bg-amber-400"></span>R</span>
                   </div>
                 </div>
 
