@@ -1,6 +1,5 @@
+export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -8,10 +7,7 @@ export async function GET(req: Request) {
   
   const tokenRes = await fetch('https://api.ouraring.com/oauth/token', {
      method: 'POST',
-     headers: { 
-       'Content-Type': 'application/x-www-form-urlencoded',
-       'User-Agent': 'AmbientDashboard/1.0'
-     },
+     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
      body: new URLSearchParams({
          grant_type: 'authorization_code',
          code: code || '',
@@ -23,16 +19,11 @@ export async function GET(req: Request) {
   
   const data = await tokenRes.json();
   
-  if (data.access_token) {
-    const tokenPath = path.join(process.cwd(), '.next', 'oura-tokens.json');
-    fs.writeFileSync(tokenPath, JSON.stringify({
-      access_token: data.access_token,
-      refresh_token: data.refresh_token,
-      expires_at: Date.now() + ((data.expires_in || 86400) * 1000) - 300000 // Valid for ~24 hrs
-    }));
-    // Automatically send you right back to your finished dashboard!
-    return NextResponse.redirect('http://localhost:3000');
-  }
-
-  return NextResponse.json({ error: "Failed to get token from Oura", details: data });
+  return NextResponse.json({
+     STEP_1: "COPY THE REFRESH TOKEN BELOW",
+     OURA_REFRESH_TOKEN: data.refresh_token,
+     STEP_2: "Go to Vercel.com > Your Project > Settings > Environment Variables.",
+     STEP_3: "Add/Update the variable named OURA_REFRESH_TOKEN with the string above.",
+     STEP_4: "Go to the Deployments tab in Vercel and click Redeploy."
+  });
 }

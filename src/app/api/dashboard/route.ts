@@ -1,15 +1,14 @@
+export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import Parser from 'rss-parser';
 import ical from 'node-ical';
-import fs from 'fs';
-import path from 'path';
+import { kv } from '@vercel/kv';
 
 export async function GET() {
   try {
     const lat = process.env.LATITUDE || '54.7761';
     const lon = process.env.LONGITUDE || '-1.5733';
 
-    // 1. Fetch Weather & Air Quality
     const [weatherRes, aqiRes] = await Promise.all([
       fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,precipitation&timezone=auto`, { next: { revalidate: 900 } }),
       fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=european_aqi`, { next: { revalidate: 1800 } })
@@ -18,14 +17,15 @@ export async function GET() {
     const weatherData = await weatherRes.json();
     const aqiData = await aqiRes.json();
 
-    // 2. Fetch Oura Metrics + 7-Day History
     let oura: any = { readiness: '--', sleep: '--', steps: '--', stress: '--', history: [] };
-    const tokenPath = path.join(process.cwd(), '.next', 'oura-tokens.json');
+    let tokenData: any = await kv.get('oura_tokens');
     
-    if (fs.existsSync(tokenPath)) {
-      try {
-        let tokenData = JSON.parse(fs.readFileSync(tokenPath, 'utf8'));
+    if (!tokenData && process.env.OURA_REFRESH_TOKEN) {
+      tokenData = { refresh_token: process.env.OURA_REFRESH_TOKEN, expires_at: 0 };
+    }
 
+    if (tokenData && tokenData.refresh_token) {
+      try {
         if (Date.now() > tokenData.expires_at) {
           const refreshRes = await fetch('https://api.ouraring.com/oauth/token', {
             method: 'POST',
@@ -41,10 +41,10 @@ export async function GET() {
           if (newTokens.access_token) {
             tokenData = {
               access_token: newTokens.access_token,
-              refresh_token: newTokens.refresh_token,
+              refresh_token: newTokens.refresh_token || tokenData.refresh_token,
               expires_at: Date.now() + ((newTokens.expires_in || 86400) * 1000) - 300000
             };
-            fs.writeFileSync(tokenPath, JSON.stringify(tokenData));
+            await kv.set('oura_tokens', tokenData);
           }
         }
 
@@ -78,7 +78,6 @@ export async function GET() {
             oura.stress = Math.round(stressHigh / 60).toString();
           }
 
-          // Map 7-Day History for Graphs
           const dayMap: Record<string, any> = {};
           for (let i = 6; i >= 0; i--) {
             const d = new Date();
@@ -91,7 +90,6 @@ export async function GET() {
           sleepData.forEach((item: any) => {
             if (dayMap[item.day]) {
               dayMap[item.day].sleep = item.score || 0;
-              // Fallback estimate if raw sleep duration endpoint isn't populated for that day
               if (!dayMap[item.day].hours && item.contributors?.total_sleep) {
                 dayMap[item.day].hours = Number(((item.contributors.total_sleep / 100) * 8.5).toFixed(1));
               }
@@ -116,7 +114,6 @@ export async function GET() {
       }
     }
 
-    // 3. Fetch Google Calendars (Tagging Main vs Uni)
     let calendarEvents: any[] = [];
     try {
       const mainUrl = process.env.GOOGLE_CALENDAR_URL_MAIN;
@@ -141,11 +138,9 @@ export async function GET() {
           }
         });
       }
-
       calendarEvents = allEvents.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()).slice(0, 12);
     } catch (e) {}
 
-    // 4. Fetch RSS News
     const parser = new Parser();
     const feed = await parser.parseURL('https://feeds.bbci.co.uk/news/world/rss.xml');
     const news = feed.items.slice(0, 6).map(item => item.title);

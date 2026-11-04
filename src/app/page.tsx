@@ -223,9 +223,9 @@ export default function Dashboard() {
               </div>
               <div className="bg-black/40 px-4 py-2.5 rounded-xl border border-white/5 flex items-center justify-between">
                 <span className="text-[10px] text-neutral-400 font-semibold tracking-wider">STEPS</span>
-                <span className="text-2xl font-black text-emerald-400">
-                  {data?.oura?.steps ? Number(data.oura.steps).toLocaleString() : '--'}
-                </span>
+                <span className="text-2xl font-black text-emerald-400">{data?.oura?.steps && data.oura.steps !== '--' ? Number(data.oura.steps).toLocaleString() : '--'}</span>
+
+
               </div>
               <div className="bg-black/40 px-4 py-2.5 rounded-xl border border-white/5 flex items-center justify-between">
                 <span className="text-[10px] text-neutral-400 font-semibold tracking-wider">STRESS</span>
