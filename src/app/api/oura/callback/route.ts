@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { kv } from '@vercel/kv';
+import { createClient } from 'redis';
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -21,12 +21,14 @@ export async function GET(req: Request) {
     const data = await tokenRes.json();
     
     if (data.refresh_token) {
-       await kv.set('oura_tokens', {
+       const redis = await createClient({ url: process.env.REDIS_URL }).connect();
+       await redis.set('oura_tokens', JSON.stringify({
          access_token: data.access_token,
          refresh_token: data.refresh_token,
          expires_at: Date.now() + ((data.expires_in || 86400) * 1000) - 300000
-       });
-       // Redirect straight back to your live dashboard once successful
+       }));
+       await redis.disconnect();
+       
        return NextResponse.redirect('https://ambient-dashboard-seven.vercel.app');
     }
     

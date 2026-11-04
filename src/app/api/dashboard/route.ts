@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import Parser from 'rss-parser';
 import ical from 'node-ical';
-import { kv } from '@vercel/kv';
+import { createClient } from 'redis';
 
 export async function GET(req: Request) {
   const _skipPrerender = new URL(req.url);
@@ -22,9 +22,12 @@ export async function GET(req: Request) {
     let tokenData: any = null;
 
     try {
-      tokenData = await kv.get('oura_tokens');
+      const redis = await createClient({ url: process.env.REDIS_URL }).connect();
+      const tokenString = await redis.get('oura_tokens');
+      if (tokenString) tokenData = JSON.parse(tokenString);
+      await redis.disconnect();
     } catch (e) {
-      console.error("KV fetch failed, ensure KV database is linked in Vercel");
+      console.error("Redis fetch failed", e);
     }
 
     if (tokenData && tokenData.refresh_token) {
@@ -47,7 +50,11 @@ export async function GET(req: Request) {
               refresh_token: newTokens.refresh_token || tokenData.refresh_token,
               expires_at: Date.now() + ((newTokens.expires_in || 86400) * 1000) - 300000
             };
-            try { await kv.set('oura_tokens', tokenData); } catch (e) {}
+            try {
+              const redis = await createClient({ url: process.env.REDIS_URL }).connect();
+              await redis.set('oura_tokens', JSON.stringify(tokenData));
+              await redis.disconnect();
+            } catch (e) {}
           }
         }
 
