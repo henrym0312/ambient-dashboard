@@ -169,15 +169,97 @@ export default function AmbientDashboard() {
     });
   }
 
-    // Filter reminders to only show items due today (or overdue / no due date if desired)
-  const todayIso = now ? now.toISOString().split('T')[0] : '';
-  const reminders = (data.reminders || []).filter((item: any) => {
-    if (!item.dueDate) return true; // Keep items without a due date if you want
-    const itemDateIso = new Date(item.dueDate).toISOString().split('T')[0];
-    return itemDateIso <= todayIso; // Shows items due today or earlier (overdue)
-  });
+    // Map Apple Reminders list names to your custom color themes
+  const getReminderListStyle = (rawList: any = '') => {
+    const listName = (typeof rawList === 'string' ? rawList : rawList?.title || rawList?.name || 'General').trim();
+    const l = listName.toLowerCase();
 
+    if (l.includes('household')) {
+      return {
+        name: 'Household',
+        classes: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+        borderLeft: 'border-l-amber-400',
+        dot: 'bg-amber-400',
+      };
+    }
+    if (l.includes('health')) {
+      return {
+        name: 'Health',
+        classes: 'bg-red-500/20 text-red-300 border-red-500/30',
+        borderLeft: 'border-l-red-500',
+        dot: 'bg-red-500',
+      };
+    }
+    if (l.includes('finance')) {
+      return {
+        name: 'Finances',
+        classes: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+        borderLeft: 'border-l-emerald-400',
+        dot: 'bg-emerald-400',
+      };
+    }
+    if (l.includes('work')) {
+      return {
+        name: 'Work',
+        classes: 'bg-neutral-500/20 text-neutral-300 border-neutral-500/30',
+        borderLeft: 'border-l-neutral-400',
+        dot: 'bg-neutral-400',
+      };
+    }
+    if (l.includes('shopping')) {
+      return {
+        name: 'Shopping',
+        classes: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
+        borderLeft: 'border-l-sky-400',
+        dot: 'bg-sky-400',
+      };
+    }
+    if (l.includes('uni misc') || l.includes('uni')) {
+      return {
+        name: 'Uni Misc',
+        classes: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
+        borderLeft: 'border-l-purple-500',
+        dot: 'bg-purple-400',
+      };
+    }
+    if (l.includes('duglj')) {
+      return {
+        name: 'DUGLJ',
+        classes: 'bg-blue-900/40 text-blue-300 border-blue-600/40',
+        borderLeft: 'border-l-blue-600',
+        dot: 'bg-blue-600',
+      };
+    }
+    if (l.includes('exam')) {
+      return {
+        name: 'Exams',
+        classes: 'bg-red-600/20 text-red-300 border-red-500/30',
+        borderLeft: 'border-l-red-600',
+        dot: 'bg-red-600',
+      };
+    }
+    return {
+      name: listName || 'Task',
+      classes: 'bg-white/10 text-neutral-300 border-white/10',
+      borderLeft: 'border-l-neutral-500',
+      dot: 'bg-neutral-400',
+    };
+  };
 
+  // Filter strictly for tasks due TODAY, then sort chronologically by deadline
+  const todayDateStr = now ? now.toLocaleDateString('en-CA') : ''; // YYYY-MM-DD
+  const reminders = (data.reminders || [])
+    .filter((item: any) => {
+      if (!item.dueDate) return false;
+      const itemDateStr = new Date(item.dueDate).toLocaleDateString('en-CA');
+      return itemDateStr === todayDateStr;
+    })
+    .sort((a: any, b: any) => {
+      return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+    });
+
+  
+  
   return (
     <main className="h-screen w-screen overflow-hidden bg-[#070B14] text-white p-6 flex flex-col justify-between gap-5 select-none font-sans">
       <style>{`
@@ -522,45 +604,70 @@ export default function AmbientDashboard() {
             </div>
           </div>
 
-          {/* APPLE REMINDERS WIDGET (NEW) */}
+          {/* APPLE REMINDERS (DUE TODAY) */}
           <div className="bg-white/[0.03] border border-white/10 rounded-3xl p-6 flex flex-col flex-1 min-h-0">
             <div className="flex items-center justify-between mb-3 shrink-0">
               <div className="flex items-center gap-3">
                 <span className="font-bold text-sm tracking-wider uppercase text-neutral-300">
-                  Apple Reminders
+                  Today's Reminders
                 </span>
                 <span className="text-xs bg-sky-500/20 text-sky-300 border border-sky-500/30 px-2.5 py-0.5 rounded-md font-mono font-bold">
-                  {reminders.length} Active
+                  {reminders.length} Due Today
                 </span>
               </div>
               <CheckCircle2 className="w-5 h-5 text-sky-400" />
             </div>
 
-            <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+            <div className="flex-1 overflow-y-auto space-y-2.5 pr-1">
               {reminders.length > 0 ? (
-                reminders.slice(0, 8).map((item: any, idx: number) => (
-                  <div
-                    key={idx}
-                    className="bg-black/45 border border-white/5 rounded-2xl px-4 py-2.5 flex items-center justify-between gap-4"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-2 h-2 rounded-full bg-sky-400 shrink-0"></div>
-                      <span className="text-base font-bold text-white tracking-tight truncate">
-                        {item.title || item.text || 'Untitled Reminder'}
-                      </span>
+                reminders.map((item: any, idx: number) => {
+                  const listStyle = getReminderListStyle(item.list || item.listName);
+                  const dueDateObj = new Date(item.dueDate);
+                  const dueTime = dueDateObj.toLocaleTimeString('en-GB', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  });
+
+                  return (
+                    <div
+                      key={idx}
+                      className={`bg-black/45 border border-white/5 border-l-4 ${listStyle.borderLeft} rounded-2xl px-4 py-3 flex items-center justify-between gap-4`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        {/* List Badge */}
+                        <span
+                          className={`text-xs font-extrabold tracking-wider uppercase px-2.5 py-1 rounded-lg border flex items-center gap-1.5 shrink-0 justify-center min-w-[95px] ${listStyle.classes}`}
+                        >
+                          <span className={`w-2 h-2 rounded-full ${listStyle.dot}`}></span>
+                          {listStyle.name}
+                        </span>
+
+                        {/* Title */}
+                        <span className="text-lg font-bold text-white tracking-tight truncate">
+                          {item.title || item.text || 'Untitled Reminder'}
+                        </span>
+                      </div>
+
+                      {/* Due Time */}
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="text-xs font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-md">
+                          {getRelativeTime(item.dueDate)}
+                        </span>
+                        <span className="text-lg font-mono font-bold text-neutral-200">
+                          {dueTime}
+                        </span>
+                      </div>
                     </div>
-                    {item.dueDate && (
-                      <span className="text-xs font-mono text-neutral-400 shrink-0">
-                        {new Date(item.dueDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                      </span>
-                    )}
-                  </div>
-                ))
+                  );
+                })
               ) : (
-                <div className="text-sm text-neutral-500 m-auto">No open reminders synced yet</div>
+                <div className="text-sm font-semibold text-neutral-500 m-auto">
+                  All done! No remaining reminders due today
+                </div>
               )}
             </div>
           </div>
+
         </div>
       </div>
 
