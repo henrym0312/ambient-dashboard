@@ -86,7 +86,7 @@ export default function AmbientDashboard() {
     const s = summary.toLowerCase();
     if (s.includes('walk') || s.includes('->') || s.includes('→') || s.includes('transit') || s.includes('train') || s.includes('drive')) {
       return {
-        label: 'TRANSIT',
+        label: 'TRAVEL',
         icon: MapPin,
         classes: 'bg-neutral-500/20 text-neutral-300 border-neutral-500/30',
       };
@@ -169,7 +169,14 @@ export default function AmbientDashboard() {
     });
   }
 
-  const reminders = data.reminders || [];
+    // Filter reminders to only show items due today (or overdue / no due date if desired)
+  const todayIso = now ? now.toISOString().split('T')[0] : '';
+  const reminders = (data.reminders || []).filter((item: any) => {
+    if (!item.dueDate) return true; // Keep items without a due date if you want
+    const itemDateIso = new Date(item.dueDate).toISOString().split('T')[0];
+    return itemDateIso <= todayIso; // Shows items due today or earlier (overdue)
+  });
+
 
   return (
     <main className="h-screen w-screen overflow-hidden bg-[#070B14] text-white p-6 flex flex-col justify-between gap-5 select-none font-sans">
