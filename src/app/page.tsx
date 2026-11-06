@@ -510,16 +510,16 @@ export default function AmbientDashboard() {
           </div>
         </div>
 
-        {/* RIGHT COLUMN: SPLIT INTO SCHEDULE AND REMINDERS */}
+                {/* RIGHT COLUMN: SPLIT EVENLY INTO SCHEDULE AND REMINDERS */}
         <div className="col-span-8 flex flex-col gap-5 min-h-0">
-          {/* LIVE SCHEDULE */}
-          <div className="bg-white/[0.03] border border-white/10 rounded-3xl p-6 flex flex-col h-[52%] min-h-0">
-            <div className="flex items-center justify-between mb-4 shrink-0">
-              <div className="flex items-center gap-5">
+          {/* LIVE SCHEDULE (Takes 50% height) */}
+          <div className="bg-white/[0.03] border border-white/10 rounded-3xl p-5 flex flex-col flex-1 min-h-0">
+            <div className="flex items-center justify-between mb-3 shrink-0">
+              <div className="flex items-center gap-4">
                 <span className="font-bold text-sm tracking-wider uppercase text-neutral-300">
                   Live Schedule
                 </span>
-                <div className="flex items-center gap-4 text-xs font-bold text-neutral-300">
+                <div className="flex items-center gap-3 text-xs font-bold text-neutral-300">
                   <span className="flex items-center gap-1.5">
                     <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>Main
                   </span>
@@ -531,14 +531,14 @@ export default function AmbientDashboard() {
               <Calendar className="w-5 h-5 text-sky-400" />
             </div>
 
-            <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+            <div className="flex-1 overflow-y-auto space-y-2.5 pr-1">
               {Object.values(groupedEvents).length > 0 ? (
                 Object.values(groupedEvents).map((group, gIdx) => (
                   <div key={gIdx} className="space-y-2">
                     <div className="flex items-center gap-3">
                       {group.badge && (
                         <span
-                          className={`text-xs font-extrabold px-3 py-0.5 rounded-md tracking-wider uppercase ${
+                          className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded tracking-wider uppercase ${
                             group.isToday
                               ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
                               : 'bg-white/10 text-neutral-200'
@@ -568,27 +568,27 @@ export default function AmbientDashboard() {
                             key={idx}
                             className={`bg-black/45 border border-white/5 border-l-4 ${
                               isUni ? 'border-l-purple-500' : 'border-l-rose-500'
-                            } rounded-2xl px-4 py-3 flex items-center justify-between gap-4`}
+                            } rounded-xl px-4 py-2.5 flex items-center justify-between gap-3`}
                           >
                             <div className="flex items-center gap-3 min-w-0">
                               <span
-                                className={`text-xs font-extrabold tracking-wider uppercase px-2.5 py-1 rounded-lg border flex items-center gap-1.5 shrink-0 min-w-[105px] justify-center ${badge.classes}`}
+                                className={`text-[11px] font-extrabold tracking-wider uppercase px-2.5 py-1 rounded-md border flex items-center gap-1.5 shrink-0 min-w-[95px] justify-center ${badge.classes}`}
                               >
                                 <BadgeIcon className="w-3.5 h-3.5 shrink-0" />
                                 {badge.label}
                               </span>
-                              <span className="text-lg font-bold text-white tracking-tight truncate">
+                              <span className="text-base font-bold text-white tracking-tight truncate">
                                 {ev.summary}
                               </span>
                             </div>
 
                             <div className="flex items-center gap-3 shrink-0">
                               {group.isToday && (
-                                <span className="text-xs font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-md">
+                                <span className="text-[11px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded">
                                   {getRelativeTime(ev.start)}
                                 </span>
                               )}
-                              <span className="text-lg font-mono font-bold text-neutral-200">
+                              <span className="text-base font-mono font-bold text-neutral-200">
                                 {evTime}
                               </span>
                             </div>
@@ -599,13 +599,15 @@ export default function AmbientDashboard() {
                   </div>
                 ))
               ) : (
-                <div className="text-sm text-neutral-500 m-auto">No upcoming schedule items</div>
+                <div className="text-sm text-neutral-500 m-auto flex items-center justify-center h-full">
+                  No upcoming schedule items
+                </div>
               )}
             </div>
           </div>
 
-          {/* APPLE REMINDERS (DUE TODAY) */}
-          <div className="bg-white/[0.03] border border-white/10 rounded-3xl p-6 flex flex-col flex-1 min-h-0">
+          {/* APPLE REMINDERS (Takes 50% height, 2 Columns) */}
+          <div className="bg-white/[0.03] border border-white/10 rounded-3xl p-5 flex flex-col flex-1 min-h-0">
             <div className="flex items-center justify-between mb-3 shrink-0">
               <div className="flex items-center gap-3">
                 <span className="font-bold text-sm tracking-wider uppercase text-neutral-300">
@@ -618,56 +620,64 @@ export default function AmbientDashboard() {
               <CheckCircle2 className="w-5 h-5 text-sky-400" />
             </div>
 
-            <div className="flex-1 overflow-y-auto space-y-2.5 pr-1">
+            <div className="flex-1 overflow-y-auto pr-1">
               {reminders.length > 0 ? (
-                reminders.map((item: any, idx: number) => {
-                  const listStyle = getReminderListStyle(item.list || item.listName);
-                  const dueDateObj = new Date(item.dueDate);
-                  const dueTime = dueDateObj.toLocaleTimeString('en-GB', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  });
+                <div className="grid grid-cols-2 gap-2.5 content-start">
+                  {reminders.map((item: any, idx: number) => {
+                    const listStyle = getReminderListStyle(item.list || item.listName);
+                    const dueDateObj = new Date(item.dueDate);
+                    const hasTime =
+                      !isNaN(dueDateObj.getTime()) &&
+                      (dueDateObj.getHours() !== 0 || dueDateObj.getMinutes() !== 0);
+                    const dueTime = hasTime
+                      ? dueDateObj.toLocaleTimeString('en-GB', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                      : 'All day';
 
-                  return (
-                    <div
-                      key={idx}
-                      className={`bg-black/45 border border-white/5 border-l-4 ${listStyle.borderLeft} rounded-2xl px-4 py-3 flex items-center justify-between gap-4`}
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        {/* List Badge */}
-                        <span
-                          className={`text-xs font-extrabold tracking-wider uppercase px-2.5 py-1 rounded-lg border flex items-center gap-1.5 shrink-0 justify-center min-w-[95px] ${listStyle.classes}`}
-                        >
-                          <span className={`w-2 h-2 rounded-full ${listStyle.dot}`}></span>
-                          {listStyle.name}
-                        </span>
+                    return (
+                      <div
+                        key={idx}
+                        className={`bg-black/45 border border-white/5 border-l-4 ${listStyle.borderLeft} rounded-xl px-3 py-2 flex items-center justify-between gap-2.5 min-w-0`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          {/* List Badge */}
+                          <span
+                            className={`text-[10px] font-extrabold tracking-wider uppercase px-2 py-0.5 rounded border flex items-center gap-1.5 shrink-0 ${listStyle.classes}`}
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full ${listStyle.dot}`}></span>
+                            {listStyle.name}
+                          </span>
 
-                        {/* Title */}
-                        <span className="text-lg font-bold text-white tracking-tight truncate">
-                          {item.title || item.text || 'Untitled Reminder'}
-                        </span>
+                          {/* Title */}
+                          <span className="text-sm font-bold text-white tracking-tight truncate">
+                            {item.title || item.text || 'Untitled Reminder'}
+                          </span>
+                        </div>
+
+                        {/* Due Time & Relative Badge */}
+                        <div className="flex items-center gap-2 shrink-0">
+                          {hasTime && (
+                            <span className="text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded">
+                              {getRelativeTime(item.dueDate)}
+                            </span>
+                          )}
+                          <span className="text-xs font-mono font-bold text-neutral-300">
+                            {dueTime}
+                          </span>
+                        </div>
                       </div>
-
-                      {/* Due Time */}
-                      <div className="flex items-center gap-3 shrink-0">
-                        <span className="text-xs font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-md">
-                          {getRelativeTime(item.dueDate)}
-                        </span>
-                        <span className="text-lg font-mono font-bold text-neutral-200">
-                          {dueTime}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })
+                    );
+                  })}
+                </div>
               ) : (
-                <div className="text-sm font-semibold text-neutral-500 m-auto">
+                <div className="text-sm font-semibold text-neutral-500 m-auto flex items-center justify-center h-full">
                   All done! No remaining reminders due today
                 </div>
               )}
             </div>
           </div>
-
         </div>
       </div>
 
