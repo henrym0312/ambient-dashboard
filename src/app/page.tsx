@@ -24,7 +24,7 @@ export default function AmbientDashboard() {
     oura: { readiness: '--', sleep: '--', steps: '--', stress: '--', history: [] },
     events: [],
     news: [],
-    reminders: [], // Added reminders default state
+    reminders: [],
   });
 
   useEffect(() => {
@@ -39,10 +39,9 @@ export default function AmbientDashboard() {
         const res = await fetch('/api/dashboard', { cache: 'no-store' });
         if (res.ok) {
           const json = await res.json();
-          setData(json);
+          setData((prev: any) => ({ ...prev, ...json }));
         }
-        
-        // Fetch Apple Reminders from the API endpoint we created
+
         const remRes = await fetch('/api/reminders', { cache: 'no-store' });
         if (remRes.ok) {
           const remJson = await remRes.json();
@@ -70,7 +69,7 @@ export default function AmbientDashboard() {
   };
 
   const getRelativeTime = (dateStr: string) => {
-    if (!now) return '';
+    if (!now || !dateStr) return '';
     const diff = new Date(dateStr).getTime() - now.getTime();
     if (diff <= 0) return 'Now';
     const mins = Math.floor(diff / 60000);
@@ -86,7 +85,7 @@ export default function AmbientDashboard() {
     const s = summary.toLowerCase();
     if (s.includes('walk') || s.includes('->') || s.includes('→') || s.includes('transit') || s.includes('train') || s.includes('drive')) {
       return {
-        label: 'TRAVEL',
+        label: 'TRANSIT',
         icon: MapPin,
         classes: 'bg-neutral-500/20 text-neutral-300 border-neutral-500/30',
       };
@@ -119,57 +118,6 @@ export default function AmbientDashboard() {
     };
   };
 
-  const timeString = now
-    ? now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
-    : '--:--';
-  const dateString = now
-    ? now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' }).toUpperCase()
-    : 'LOADING...';
-
-  const history: any[] = data.oura?.history || [];
-  const validHours = history.filter((d) => d.hours > 0);
-  const avgHours =
-    validHours.length > 0
-      ? (validHours.reduce((acc, d) => acc + d.hours, 0) / validHours.length).toFixed(1)
-      : '0.0';
-
-  const stepsFormatted =
-    typeof data.oura?.steps === 'number'
-      ? data.oura.steps.toLocaleString('en-GB')
-      : data.oura?.steps ?? '--';
-
-  const nextEvent = data.events && data.events.length > 0 ? data.events[0] : null;
-
-  const groupedEvents: Record<string, { badge?: string; dateLabel: string; isToday: boolean; items: any[] }> = {};
-  if (now && data.events) {
-    const todayIso = now.toISOString().split('T')[0];
-    const tomDate = new Date(now);
-    tomDate.setDate(tomDate.getDate() + 1);
-    const tomorrowIso = tomDate.toISOString().split('T')[0];
-
-    data.events.slice(0, 8).forEach((ev: any) => {
-      const evDate = new Date(ev.start);
-      const iso = evDate.toISOString().split('T')[0];
-      const formattedDate = evDate
-        .toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })
-        .toUpperCase();
-
-      if (!groupedEvents[iso]) {
-        let badge: string | undefined = undefined;
-        if (iso === todayIso) badge = 'TODAY';
-        else if (iso === tomorrowIso) badge = 'TOMORROW';
-        groupedEvents[iso] = {
-          badge,
-          dateLabel: formattedDate,
-          isToday: iso === todayIso,
-          items: [],
-        };
-      }
-      groupedEvents[iso].items.push(ev);
-    });
-  }
-
-    // Map Apple Reminders list names to your custom color themes
   const getReminderListStyle = (rawList: any = '') => {
     const listName = (typeof rawList === 'string' ? rawList : rawList?.title || rawList?.name || 'General').trim();
     const l = listName.toLowerCase();
@@ -225,9 +173,9 @@ export default function AmbientDashboard() {
     if (l.includes('duglj')) {
       return {
         name: 'DUGLJ',
-        classes: 'bg-blue-900/40 text-blue-300 border-blue-600/40',
+        classes: 'bg-blue-950/60 text-blue-300 border-blue-600/40',
         borderLeft: 'border-l-blue-600',
-        dot: 'bg-blue-600',
+        dot: 'bg-blue-500',
       };
     }
     if (l.includes('exam')) {
@@ -246,8 +194,57 @@ export default function AmbientDashboard() {
     };
   };
 
-  // Filter strictly for tasks due TODAY, then sort chronologically by deadline
-  const todayDateStr = now ? now.toLocaleDateString('en-CA') : ''; // YYYY-MM-DD
+  const timeString = now
+    ? now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+    : '--:--';
+  const dateString = now
+    ? now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' }).toUpperCase()
+    : 'LOADING...';
+
+  const history: any[] = data.oura?.history || [];
+  const validHours = history.filter((d) => d.hours > 0);
+  const avgHours =
+    validHours.length > 0
+      ? (validHours.reduce((acc, d) => acc + d.hours, 0) / validHours.length).toFixed(1)
+      : '0.0';
+
+  const stepsFormatted =
+    typeof data.oura?.steps === 'number'
+      ? data.oura.steps.toLocaleString('en-GB')
+      : data.oura?.steps ?? '--';
+
+  const nextEvent = data.events && data.events.length > 0 ? data.events[0] : null;
+
+  const groupedEvents: Record<string, { badge?: string; dateLabel: string; isToday: boolean; items: any[] }> = {};
+  if (now && data.events) {
+    const todayIso = now.toISOString().split('T')[0];
+    const tomDate = new Date(now);
+    tomDate.setDate(tomDate.getDate() + 1);
+    const tomorrowIso = tomDate.toISOString().split('T')[0];
+
+    data.events.slice(0, 8).forEach((ev: any) => {
+      const evDate = new Date(ev.start);
+      const iso = evDate.toISOString().split('T')[0];
+      const formattedDate = evDate
+        .toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })
+        .toUpperCase();
+
+      if (!groupedEvents[iso]) {
+        let badge: string | undefined = undefined;
+        if (iso === todayIso) badge = 'TODAY';
+        else if (iso === tomorrowIso) badge = 'TOMORROW';
+        groupedEvents[iso] = {
+          badge,
+          dateLabel: formattedDate,
+          isToday: iso === todayIso,
+          items: [],
+        };
+      }
+      groupedEvents[iso].items.push(ev);
+    });
+  }
+
+  const todayDateStr = now ? now.toLocaleDateString('en-CA') : '';
   const reminders = (data.reminders || [])
     .filter((item: any) => {
       if (!item.dueDate) return false;
@@ -258,8 +255,6 @@ export default function AmbientDashboard() {
       return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
     });
 
-  
-  
   return (
     <main className="h-screen w-screen overflow-hidden bg-[#070B14] text-white p-6 flex flex-col justify-between gap-5 select-none font-sans">
       <style>{`
@@ -510,9 +505,9 @@ export default function AmbientDashboard() {
           </div>
         </div>
 
-                {/* RIGHT COLUMN: SPLIT EVENLY INTO SCHEDULE AND REMINDERS */}
+        {/* RIGHT COLUMN: SCHEDULE + REMINDERS */}
         <div className="col-span-8 flex flex-col gap-5 min-h-0">
-          {/* LIVE SCHEDULE (Takes 50% height) */}
+          {/* LIVE SCHEDULE */}
           <div className="bg-white/[0.03] border border-white/10 rounded-3xl p-5 flex flex-col flex-1 min-h-0">
             <div className="flex items-center justify-between mb-3 shrink-0">
               <div className="flex items-center gap-4">
@@ -606,7 +601,7 @@ export default function AmbientDashboard() {
             </div>
           </div>
 
-          {/* APPLE REMINDERS (Takes 50% height, 2 Columns) */}
+          {/* APPLE REMINDERS (2 COLUMNS) */}
           <div className="bg-white/[0.03] border border-white/10 rounded-3xl p-5 flex flex-col flex-1 min-h-0">
             <div className="flex items-center justify-between mb-3 shrink-0">
               <div className="flex items-center gap-3">
@@ -642,7 +637,6 @@ export default function AmbientDashboard() {
                         className={`bg-black/45 border border-white/5 border-l-4 ${listStyle.borderLeft} rounded-xl px-3 py-2 flex items-center justify-between gap-2.5 min-w-0`}
                       >
                         <div className="flex items-center gap-2 min-w-0 flex-1">
-                          {/* List Badge */}
                           <span
                             className={`text-[10px] font-extrabold tracking-wider uppercase px-2 py-0.5 rounded border flex items-center gap-1.5 shrink-0 ${listStyle.classes}`}
                           >
@@ -650,13 +644,11 @@ export default function AmbientDashboard() {
                             {listStyle.name}
                           </span>
 
-                          {/* Title */}
                           <span className="text-sm font-bold text-white tracking-tight truncate">
                             {item.title || item.text || 'Untitled Reminder'}
                           </span>
                         </div>
 
-                        {/* Due Time & Relative Badge */}
                         <div className="flex items-center gap-2 shrink-0">
                           {hasTime && (
                             <span className="text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded">
@@ -710,4 +702,3 @@ export default function AmbientDashboard() {
     </main>
   );
 }
-
