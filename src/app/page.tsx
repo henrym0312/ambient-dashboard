@@ -42,17 +42,31 @@ export default function AmbientDashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  // 3. FIRE TV REMOTE LISTENER (1, 2, 3, and Back)
+    // 3. FIRE TV REMOTE LISTENER (D-Pad & Select)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === '1') setActiveModal(prev => prev === 'calendar' ? null : 'calendar');
-      if (e.key === '2') setActiveModal(prev => prev === 'reminders' ? null : 'reminders');
-      if (e.key === '3') setActiveModal(prev => prev === 'oura' ? null : 'oura');
-      if (e.key === 'Escape' || e.key === 'Backspace') setActiveModal(null);
+      // D-Pad Left -> Oura Modal
+      if (e.key === 'ArrowLeft') {
+        setActiveModal(prev => prev === 'oura' ? null : 'oura');
+      }
+      // D-Pad Right or Up -> Calendar Modal
+      if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+        setActiveModal(prev => prev === 'calendar' ? null : 'calendar');
+      }
+      // D-Pad Down -> Reminders Modal
+      if (e.key === 'ArrowDown') {
+        setActiveModal(prev => prev === 'reminders' ? null : 'reminders');
+      }
+      // Center 'Select' Button (Enter) or 'Back' to close
+      if (e.key === 'Enter' || e.key === 'Escape' || e.key === 'Backspace') {
+        setActiveModal(null);
+      }
     };
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
 
   // HELPERS (Simplified for length)
   const getRelativeTime = (dateStr: string) => { /* Same as before */ 
