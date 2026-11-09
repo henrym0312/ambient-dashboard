@@ -31,7 +31,10 @@ export default function AmbientDashboard() {
           fetch('/api/reminders', { cache: 'no-store' })
         ]);
         
-        if (dashRes.ok) setData((p: any) => ({ ...p, ...(await dashRes.json()) }));
+        if (dashRes.ok) {
+          const dashJson = await dashRes.json();
+          setData((p: any) => ({ ...p, ...dashJson }));
+        }
         if (remRes.ok) {
           const remJson = await remRes.json();
           setData((p: any) => ({ ...p, reminders: Array.isArray(remJson) ? remJson : (remJson.items || []) }));
