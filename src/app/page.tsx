@@ -17,9 +17,10 @@ export default function AmbientDashboard() {
     reminders: [],
   });
 
+  // 1. CPU OPTIMIZATION: Update clock every 10 seconds instead of 1 second to stop UI stutter
   useEffect(() => {
     setNow(new Date());
-    const timer = setInterval(() => setNow(new Date()), 1000);
+    const timer = setInterval(() => setNow(new Date()), 10000);
     return () => clearInterval(timer);
   }, []);
 
@@ -134,33 +135,33 @@ export default function AmbientDashboard() {
     .filter((item: any) => item.dueDate && new Date(item.dueDate).toLocaleDateString('en-CA') === todayDateStr)
     .sort((a: any, b: any) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
 
-  // REUSABLE LIQUID GLASS CARD COMPONENT
   const GlassCard = ({ children, className = '' }: { children: React.ReactNode, className?: string }) => (
-    <div className={`bg-white/[0.02] backdrop-blur-2xl border border-white/[0.08] shadow-[0_8px_32px_0_rgba(0,0,0,0.4)] rounded-3xl p-6 ${className}`}>
+    <div className={`bg-white/[0.03] border border-white/[0.08] rounded-3xl p-6 ${className}`}>
       {children}
     </div>
   );
 
+  // 2. MODAL OVERLAP FIX: Use solid opaque background instead of blur
   const renderModal = () => {
     if (!activeModal) return null;
     return (
-      <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-3xl flex items-center justify-center p-12 animate-in fade-in duration-300">
-        <GlassCard className="w-full h-full flex flex-col relative border-white/20">
+      <div className="absolute inset-0 z-50 bg-black flex items-center justify-center p-10 animate-in fade-in duration-200">
+        <div className="w-full h-full bg-[#0a0f18] border border-white/15 rounded-3xl flex flex-col relative p-8 shadow-2xl">
           <button onClick={() => setActiveModal(null)} className="absolute top-8 right-8 p-3 bg-white/10 rounded-full text-white hover:bg-white/20 transition">
             <X className="w-6 h-6" />
           </button>
           
           {activeModal === 'reminders' && (
             <div className="flex flex-col h-full">
-              <h2 className="text-3xl font-semibold text-white mb-8">All Tasks</h2>
-              <div className="overflow-y-auto pr-4 space-y-1">
+              <h2 className="text-4xl font-semibold text-white mb-8">All Tasks</h2>
+              <div className="overflow-y-auto pr-4 space-y-2">
                 {data.reminders.map((r: any, i: number) => {
                    const listStyle = getReminderListStyle(r.list || r.listName);
                    return (
-                    <div key={i} className="py-4 border-b border-white/5 last:border-0 flex items-center gap-4">
-                      <div className={`w-3 h-3 rounded-full border-2 ${listStyle.color.replace('text', 'border')} bg-transparent`}></div>
-                      <div className="font-medium text-lg flex-1 text-white/90">{r.title || r.text || 'Untitled'}</div>
-                      <span className="text-sm font-medium text-white/40">{listStyle.name}</span>
+                    <div key={i} className="py-5 px-6 bg-white/[0.04] rounded-2xl flex items-center gap-5">
+                      <div className={`w-4 h-4 rounded-full border-2 ${listStyle.color.replace('text', 'border')} bg-transparent shrink-0`}></div>
+                      <div className="font-medium text-xl flex-1 text-white/95">{r.title || r.text || 'Untitled'}</div>
+                      <span className="text-base font-medium text-white/50">{listStyle.name}</span>
                     </div>
                    )
                 })}
@@ -170,18 +171,18 @@ export default function AmbientDashboard() {
           
           {activeModal === 'calendar' && (
             <div className="flex flex-col h-full">
-              <h2 className="text-3xl font-semibold text-white mb-8">Calendar</h2>
-              <div className="overflow-y-auto pr-4 space-y-1">
+              <h2 className="text-4xl font-semibold text-white mb-8">Calendar</h2>
+              <div className="overflow-y-auto pr-4 space-y-2">
                 {data.events.map((e: any, i: number) => {
                    const badge = getEventBadge(e.summary);
                    return (
-                    <div key={i} className="py-4 border-b border-white/5 last:border-0 flex items-center gap-6">
-                      <div className="flex flex-col min-w-[80px]">
-                        <span className="text-white/90 font-medium">{new Date(e.start).toLocaleTimeString('en-GB', {hour: '2-digit', minute: '2-digit'})}</span>
-                        <span className="text-white/40 text-sm">{new Date(e.start).toLocaleDateString('en-GB', {weekday: 'short', day: 'numeric'})}</span>
+                    <div key={i} className="py-5 px-6 bg-white/[0.04] rounded-2xl flex items-center gap-6">
+                      <div className="flex flex-col min-w-[100px] shrink-0">
+                        <span className="text-white/95 text-lg font-medium">{new Date(e.start).toLocaleTimeString('en-GB', {hour: '2-digit', minute: '2-digit'})}</span>
+                        <span className="text-white/50 text-sm">{new Date(e.start).toLocaleDateString('en-GB', {weekday: 'short', day: 'numeric'})}</span>
                       </div>
-                      <div className={`w-2 h-2 rounded-full ${badge.dot}`}></div>
-                      <span className="font-medium text-lg text-white/90">{e.summary}</span>
+                      <div className={`w-3 h-3 rounded-full shrink-0 ${badge.dot}`}></div>
+                      <span className="font-medium text-xl text-white/95 truncate">{e.summary}</span>
                     </div>
                    )
                 })}
@@ -191,17 +192,17 @@ export default function AmbientDashboard() {
 
           {activeModal === 'oura' && (
             <div className="flex flex-col h-full items-center justify-center">
-              <Activity className="w-16 h-16 text-white/80 mb-6" />
-              <h2 className="text-3xl font-semibold text-white mb-12">Health Metrics</h2>
-              <div className="grid grid-cols-4 gap-8 text-center w-full max-w-4xl">
-                 <div><div className="text-white/40 text-sm mb-2 font-medium">Readiness</div><div className="text-5xl font-light text-white">{data.oura.readiness}</div></div>
-                 <div><div className="text-white/40 text-sm mb-2 font-medium">Sleep</div><div className="text-5xl font-light text-white">{data.oura.sleep}</div></div>
-                 <div><div className="text-white/40 text-sm mb-2 font-medium">Steps</div><div className="text-5xl font-light text-white">{stepsFormatted}</div></div>
-                 <div><div className="text-white/40 text-sm mb-2 font-medium">Stress</div><div className="text-5xl font-light text-white">{data.oura.stress}<span className="text-2xl text-white/40 ml-1">m</span></div></div>
+              <Activity className="w-20 h-20 text-white/80 mb-8" />
+              <h2 className="text-5xl font-semibold text-white mb-16">Health Metrics</h2>
+              <div className="grid grid-cols-4 gap-8 text-center w-full max-w-5xl">
+                 <div className="bg-white/[0.04] p-8 rounded-3xl"><div className="text-white/50 text-base mb-3 font-medium uppercase tracking-widest">Readiness</div><div className="text-6xl font-light text-white">{data.oura.readiness}</div></div>
+                 <div className="bg-white/[0.04] p-8 rounded-3xl"><div className="text-white/50 text-base mb-3 font-medium uppercase tracking-widest">Sleep</div><div className="text-6xl font-light text-white">{data.oura.sleep}</div></div>
+                 <div className="bg-white/[0.04] p-8 rounded-3xl"><div className="text-white/50 text-base mb-3 font-medium uppercase tracking-widest">Steps</div><div className="text-6xl font-light text-white">{stepsFormatted}</div></div>
+                 <div className="bg-white/[0.04] p-8 rounded-3xl"><div className="text-white/50 text-base mb-3 font-medium uppercase tracking-widest">Stress</div><div className="text-6xl font-light text-white">{data.oura.stress}<span className="text-3xl text-white/40 ml-1">m</span></div></div>
               </div>
             </div>
           )}
-        </GlassCard>
+        </div>
       </div>
     );
   };
@@ -210,12 +211,21 @@ export default function AmbientDashboard() {
     <main className={`h-screen w-screen overflow-hidden bg-black text-white p-8 flex flex-col justify-between gap-6 select-none font-sans transition-opacity duration-1000 ${isEvening ? 'opacity-80' : 'opacity-100'}`}>
       {renderModal()}
       
+      {/* 3. GPU HARDWARE ACCELERATION: translate3d forces Fire TV to use GPU for smooth ticker */}
       <style>{`
-        @keyframes ticker { 0% { transform: translateX(0%); } 100% { transform: translateX(-50%); } }
-        .animate-ticker { display: flex; width: max-content; animation: ticker 60s linear infinite; }
+        @keyframes ticker { 
+          0% { transform: translate3d(0, 0, 0); } 
+          100% { transform: translate3d(-50%, 0, 0); } 
+        }
+        .animate-ticker { 
+          display: flex; 
+          width: max-content; 
+          animation: ticker 50s linear infinite; 
+          will-change: transform;
+        }
       `}</style>
 
-      {/* TOP HEADER: LIQUID GLASS ANCHOR */}
+      {/* TOP HEADER */}
       <header className="grid grid-cols-12 gap-6 items-center shrink-0">
         <div className="col-span-3 flex flex-col justify-center">
           <div className="text-7xl font-medium tracking-tighter text-white/95">{timeString}</div>
@@ -255,7 +265,7 @@ export default function AmbientDashboard() {
       {/* MAIN CONTENT GRID */}
       <div className="grid grid-cols-12 gap-6 flex-1 min-h-0">
         
-        {/* LEFT COLUMN: OURA (Floating Text) */}
+        {/* LEFT COLUMN: OURA */}
         <div className={`${leftColSpan} flex flex-col gap-6 min-h-0 transition-all duration-700`}>
           <GlassCard className="flex flex-col justify-between shrink-0 !pb-8">
             <div className="flex items-center gap-2 mb-6">
@@ -299,7 +309,7 @@ export default function AmbientDashboard() {
                     <div className="w-full flex justify-center items-end flex-1 min-h-0 px-1">
                       <div className="w-full max-w-[12px] rounded-full transition-all duration-500 bg-white/20" style={{ height: `${h}%` }} />
                     </div>
-                    <span className="text-[11px] text-white/40 font-medium mt-3 uppercase">{d.label}</span>
+                    <span className="text-[9px] text-white/40 font-medium mt-3 uppercase">{d.label}</span>
                   </div>
                 );
               }) : <span className="text-sm text-white/40 m-auto">Syncing...</span>}
@@ -307,7 +317,7 @@ export default function AmbientDashboard() {
           </GlassCard>
         </div>
 
-        {/* RIGHT COLUMN: LIST ROWS (Apple Style) */}
+        {/* RIGHT COLUMN: LIST ROWS */}
         <div className={`${rightColSpan} flex flex-col gap-6 min-h-0 transition-all duration-700`}>
           
           {/* SCHEDULE */}
@@ -327,13 +337,13 @@ export default function AmbientDashboard() {
                         const isUni = ev.calendar === 'Uni';
                         const evTime = new Date(ev.start).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
                         return (
-                          <div key={idx} className="py-3 flex items-center justify-between gap-4 border-b border-white/5 last:border-0">
+                          <div key={idx} className="py-3.5 flex items-center justify-between gap-4 border-b border-white/5 last:border-0">
                             <div className="flex items-center gap-4 min-w-0">
-                              <span className="w-[45px] text-sm font-medium text-white/50">{evTime}</span>
-                              <div className={`w-1.5 h-1.5 rounded-full ${isUni ? 'bg-purple-400' : 'bg-white/40'}`}></div>
-                              <span className="text-lg font-medium text-white/90 truncate">{ev.summary}</span>
+                              <span className="w-[45px] text-sm font-medium text-white/50 shrink-0">{evTime}</span>
+                              <div className={`w-2 h-2 rounded-full shrink-0 ${isUni ? 'bg-purple-400' : 'bg-white/40'}`}></div>
+                              <span className="text-lg font-medium text-white/95 truncate">{ev.summary}</span>
                             </div>
-                            <span className="text-xs font-medium text-white/30">{badge.label}</span>
+                            <span className="text-xs font-medium text-white/30 shrink-0">{badge.label}</span>
                           </div>
                         );
                       })}
@@ -357,12 +367,12 @@ export default function AmbientDashboard() {
                     const listStyle = getReminderListStyle(item.list || item.listName);
                     const hasTime = !isNaN(new Date(item.dueDate).getTime()) && (new Date(item.dueDate).getHours() !== 0 || new Date(item.dueDate).getMinutes() !== 0);
                     return (
-                      <div key={idx} className="py-3 flex items-center justify-between gap-4 border-b border-white/5 last:border-0">
+                      <div key={idx} className="py-3.5 flex items-center justify-between gap-4 border-b border-white/5 last:border-0">
                         <div className="flex items-center gap-4 min-w-0">
-                          <div className={`w-3 h-3 rounded-full border-[1.5px] ${listStyle.color.replace('text', 'border')} bg-transparent`}></div>
-                          <span className="text-base font-medium text-white/90 truncate">{item.title || item.text}</span>
+                          <div className={`w-3.5 h-3.5 rounded-full border-[1.5px] shrink-0 ${listStyle.color.replace('text', 'border')} bg-transparent`}></div>
+                          <span className="text-lg font-medium text-white/95 truncate">{item.title || item.text}</span>
                         </div>
-                        {hasTime && <span className="text-sm font-medium text-white/40">{new Date(item.dueDate).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>}
+                        {hasTime && <span className="text-sm font-medium text-white/40 shrink-0">{new Date(item.dueDate).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>}
                       </div>
                     );
                   })}
@@ -379,8 +389,8 @@ export default function AmbientDashboard() {
         <div className="overflow-hidden flex-1 relative">
           {data.news && data.news.length > 0 ? (
             <div className="animate-ticker items-center">
-              {[...data.news, ...data.news].map((headline: string, i: number) => (
-                <span key={i} className="text-sm font-medium text-white/70 whitespace-nowrap mr-12">{headline}</span>
+              {[...data.news, ...data.news, ...data.news].map((headline: string, i: number) => (
+                <span key={i} className="text-sm font-medium text-white/70 whitespace-nowrap mr-12 shrink-0">{headline}</span>
               ))}
             </div>
           ) : <span className="text-sm text-white/40">Loading...</span>}
