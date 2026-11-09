@@ -2,11 +2,11 @@
 
 import React, { useEffect, useState } from 'react';
 import {
-  Activity, Calendar, Sun, CloudRain, ArrowRight,
-  Cake, Sparkles, GraduationCap, MapPin, Users, BookOpen, CheckCircle2, X, Mail
+  Activity, Calendar, Sun, ArrowRight,
+  GraduationCap, MapPin, Users, BookOpen, CheckCircle2, X, Mail,
+  ChevronLeft, ChevronRight, ChevronDown
 } from 'lucide-react';
 
-// --- PURE CSS TICKER COMPONENT (Prevents jumping on clock updates) ---
 const NewsTicker = React.memo(({ news, isEvening }: { news: any[], isEvening: boolean }) => (
   <div className={`bg-white/[0.03] border border-white/[0.08] shadow-[0_8px_32px_0_rgba(0,0,0,0.4)] rounded-3xl p-3 shrink-0 overflow-hidden flex items-center gap-4 transition-opacity duration-1000 ${isEvening ? 'opacity-70' : 'opacity-100'}`}>
     <style>{`
@@ -27,7 +27,6 @@ const NewsTicker = React.memo(({ news, isEvening }: { news: any[], isEvening: bo
 ));
 NewsTicker.displayName = 'NewsTicker';
 
-// --- LIVE COUNTDOWN MODAL COMPONENT (Updates every second independently) ---
 const UpcomingEventModal = ({ event, onClose }: { event: any, onClose: () => void }) => {
   const [timeLeft, setTimeLeft] = useState('');
   
@@ -48,8 +47,8 @@ const UpcomingEventModal = ({ event, onClose }: { event: any, onClose: () => voi
   }, [event]);
 
   return (
-    <div className="absolute inset-0 z-50 bg-black flex items-center justify-center p-10 animate-in fade-in zoom-in duration-300">
-      <div className="w-full h-full bg-[#0a0f18] border border-white/15 rounded-3xl flex flex-col items-center justify-center relative p-8 shadow-2xl text-center">
+    <div className="absolute inset-0 z-50 bg-black/95 flex items-center justify-center p-10 animate-in fade-in zoom-in duration-300">
+      <div className="w-full h-full bg-black border border-white/15 rounded-3xl flex flex-col items-center justify-center relative p-8 shadow-[0_0_50px_rgba(255,255,255,0.03)] text-center">
         <button onClick={onClose} className="absolute top-8 right-8 p-3 bg-white/10 rounded-full text-white hover:bg-white/20 transition">
           <X className="w-6 h-6" />
         </button>
@@ -64,7 +63,6 @@ const UpcomingEventModal = ({ event, onClose }: { event: any, onClose: () => voi
   );
 };
 
-// --- MAIN DASHBOARD ---
 export default function AmbientDashboard() {
   const [now, setNow] = useState<Date | null>(null);
   const [activeModal, setActiveModal] = useState<'calendar' | 'reminders' | 'oura' | 'upcoming' | null>(null);
@@ -79,14 +77,12 @@ export default function AmbientDashboard() {
     emails: { gmail: { unread: 0, total: 0 }, uni: { unread: 0, total: 0 } }
   });
 
-  // Main UI Clock (10s updates)
   useEffect(() => {
     setNow(new Date());
     const timer = setInterval(() => setNow(new Date()), 10000);
     return () => clearInterval(timer);
   }, []);
 
-  // Data Fetching
   useEffect(() => {
     const fetchDashboard = async () => {
       try {
@@ -113,29 +109,25 @@ export default function AmbientDashboard() {
 
   const nextEvent = data.events && data.events.length > 0 ? data.events[0] : null;
 
-  // Auto-trigger Upcoming Modal (if within 15 mins)
   useEffect(() => {
     if (nextEvent) {
       const timeTo = new Date(nextEvent.start).getTime() - Date.now();
       const eventKey = nextEvent.summary + nextEvent.start;
       
-      // Open if <= 15 mins, not started yet, and not dismissed
       if (timeTo > 0 && timeTo <= 15 * 60 * 1000 && dismissedEventKey !== eventKey && activeModal !== 'upcoming') {
         setActiveModal('upcoming');
       } else if (timeTo <= 0 && activeModal === 'upcoming') {
-        setActiveModal(null); // Close when event physically starts
+        setActiveModal(null);
       }
     }
   }, [now, nextEvent, dismissedEventKey, activeModal]);
 
-  // TV D-PAD LISTENER
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'ArrowLeft') setActiveModal(prev => prev === 'oura' ? null : 'oura');
       if (e.key === 'ArrowRight' || e.key === 'ArrowUp') setActiveModal(prev => prev === 'calendar' ? null : 'calendar');
       if (e.key === 'ArrowDown') setActiveModal(prev => prev === 'reminders' ? null : 'reminders');
       if (e.key === 'Enter' || e.key === 'Escape' || e.key === 'Backspace') {
-        // If closing the upcoming modal, dismiss this specific event so it doesn't pop back open
         if (activeModal === 'upcoming' && nextEvent) {
           setDismissedEventKey(nextEvent.summary + nextEvent.start);
         }
@@ -175,15 +167,15 @@ export default function AmbientDashboard() {
 
   const getReminderListStyle = (rawList: any = '') => {
     const l = (typeof rawList === 'string' ? rawList : rawList?.title || rawList?.name || 'General').trim().toLowerCase();
-    if (l.includes('household')) return { name: 'Household', color: 'text-amber-400', dot: 'bg-amber-400' };
-    if (l.includes('health')) return { name: 'Health', color: 'text-red-400', dot: 'bg-red-400' };
-    if (l.includes('finance')) return { name: 'Finances', color: 'text-emerald-400', dot: 'bg-emerald-400' };
-    if (l.includes('work')) return { name: 'Work', color: 'text-neutral-400', dot: 'bg-neutral-400' };
-    if (l.includes('shopping')) return { name: 'Shopping', color: 'text-sky-400', dot: 'bg-sky-400' };
-    if (l.includes('uni')) return { name: 'Uni', color: 'text-purple-400', dot: 'bg-purple-400' };
-    if (l.includes('duglj')) return { name: 'DUGLJ', color: 'text-blue-500', dot: 'bg-blue-500' };
-    if (l.includes('exam')) return { name: 'Exams', color: 'text-red-500', dot: 'bg-red-500' };
-    return { name: l || 'Task', color: 'text-neutral-400', dot: 'bg-neutral-500' };
+    if (l.includes('household')) return { name: 'Household', color: 'text-amber-400', border: 'border-amber-400', dot: 'bg-amber-400' };
+    if (l.includes('health')) return { name: 'Health', color: 'text-red-400', border: 'border-red-400', dot: 'bg-red-400' };
+    if (l.includes('finance')) return { name: 'Finances', color: 'text-emerald-400', border: 'border-emerald-400', dot: 'bg-emerald-400' };
+    if (l.includes('work')) return { name: 'Work', color: 'text-neutral-400', border: 'border-neutral-400', dot: 'bg-neutral-400' };
+    if (l.includes('shopping')) return { name: 'Shopping', color: 'text-sky-400', border: 'border-sky-400', dot: 'bg-sky-400' };
+    if (l.includes('uni')) return { name: 'Uni', color: 'text-purple-400', border: 'border-purple-400', dot: 'bg-purple-400' };
+    if (l.includes('duglj')) return { name: 'DUGLJ', color: 'text-blue-500', border: 'border-blue-500', dot: 'bg-blue-500' };
+    if (l.includes('exam')) return { name: 'Exams', color: 'text-red-500', border: 'border-red-500', dot: 'bg-red-500' };
+    return { name: l || 'Task', color: 'text-neutral-400', border: 'border-neutral-500', dot: 'bg-neutral-500' };
   };
 
   const timeString = now ? now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '--:--';
@@ -238,8 +230,8 @@ export default function AmbientDashboard() {
     }
     
     return (
-      <div className="absolute inset-0 z-50 bg-black flex items-center justify-center p-10 animate-in fade-in duration-200">
-        <div className="w-full h-full bg-[#0a0f18] border border-white/15 rounded-3xl flex flex-col relative p-8 shadow-2xl">
+      <div className="absolute inset-0 z-50 bg-black/95 flex items-center justify-center p-10 animate-in fade-in duration-200">
+        <div className="w-full h-full bg-black border border-white/15 rounded-3xl flex flex-col relative p-8 shadow-[0_0_50px_rgba(255,255,255,0.03)]">
           <button onClick={() => setActiveModal(null)} className="absolute top-8 right-8 p-3 bg-white/10 rounded-full text-white hover:bg-white/20 transition">
             <X className="w-6 h-6" />
           </button>
@@ -252,7 +244,7 @@ export default function AmbientDashboard() {
                    const listStyle = getReminderListStyle(r.list || r.listName);
                    return (
                     <div key={i} className="py-5 px-6 bg-white/[0.04] rounded-2xl flex items-center gap-5">
-                      <div className={`w-4 h-4 rounded-full border-2 ${listStyle.color.replace('text', 'border')} bg-transparent shrink-0`}></div>
+                      <div className={`w-4 h-4 rounded-full border-2 ${listStyle.border} bg-transparent shrink-0`}></div>
                       <div className="font-medium text-xl flex-1 text-white/95">{r.title || r.text || 'Untitled'}</div>
                       <span className="text-base font-medium text-white/50 capitalize">{listStyle.name}</span>
                     </div>
@@ -354,7 +346,10 @@ export default function AmbientDashboard() {
         
         {/* LEFT COLUMN */}
         <div className={`${leftColSpan} flex flex-col gap-6 min-h-0 transition-all duration-700`}>
-          <GlassCard className="flex flex-col justify-between shrink-0 !pb-6">
+          <GlassCard className="flex flex-col justify-between shrink-0 !pb-6 relative">
+            <div className="absolute top-6 right-6 flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-white/40 text-[10px] uppercase tracking-widest">
+              <ChevronLeft className="w-3 h-3" /> Press
+            </div>
             <div className="flex items-center gap-2 mb-5">
               <Activity className="w-4 h-4 text-white/40" />
               <span className="font-medium text-sm text-white/40 uppercase tracking-widest">Biometrics</span>
@@ -407,7 +402,7 @@ export default function AmbientDashboard() {
                   </div>
                   <div className="flex flex-col">
                     <span className="text-white/90 font-medium leading-tight">University</span>
-                    <span className="text-white/40 text-xs">Durham</span>
+                    <span className="text-white/40 text-xs">Exchange</span>
                   </div>
                 </div>
                 <div className="flex flex-col items-end">
@@ -437,7 +432,10 @@ export default function AmbientDashboard() {
         {/* RIGHT COLUMN */}
         <div className={`${rightColSpan} flex flex-col gap-6 min-h-0 transition-all duration-700`}>
           {/* SCHEDULE */}
-          <GlassCard className="flex flex-col flex-1 min-h-0">
+          <GlassCard className="flex flex-col flex-1 min-h-0 relative">
+            <div className="absolute top-6 right-6 flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-white/40 text-[10px] uppercase tracking-widest">
+              Press <ChevronRight className="w-3 h-3" />
+            </div>
             <div className="flex items-center gap-2 mb-4 shrink-0">
               <Calendar className="w-4 h-4 text-white/40" />
               <span className="font-medium text-sm text-white/40 uppercase tracking-widest">Schedule</span>
@@ -471,7 +469,10 @@ export default function AmbientDashboard() {
           </GlassCard>
 
           {/* REMINDERS */}
-          <GlassCard className="flex flex-col flex-1 min-h-0">
+          <GlassCard className="flex flex-col flex-1 min-h-0 relative">
+            <div className="absolute top-6 right-6 flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-white/40 text-[10px] uppercase tracking-widest">
+              Press <ChevronDown className="w-3 h-3" />
+            </div>
             <div className="flex items-center gap-2 mb-4 shrink-0">
               <CheckCircle2 className="w-4 h-4 text-white/40" />
               <span className="font-medium text-sm text-white/40 uppercase tracking-widest">Today's Tasks</span>
@@ -485,7 +486,7 @@ export default function AmbientDashboard() {
                     return (
                       <div key={idx} className="py-3 flex items-center justify-between gap-4 border-b border-white/5 last:border-0">
                         <div className="flex items-center gap-4 min-w-0">
-                          <div className={`w-3.5 h-3.5 rounded-full border-[1.5px] shrink-0 ${listStyle.color.replace('text', 'border')} bg-transparent`}></div>
+                          <div className={`w-3.5 h-3.5 rounded-full border-[1.5px] shrink-0 ${listStyle.border} bg-transparent`}></div>
                           <div className="flex flex-col min-w-0">
                             <span className="text-lg font-medium text-white/95 truncate leading-tight">{item.title || item.text}</span>
                             <span className="text-xs font-medium text-white/40 capitalize">{listStyle.name}</span>
