@@ -347,68 +347,66 @@ export default function AmbientDashboard() {
             </div>
           </div>
 
-          {!isDeepWork && (
-            <div className="bg-white/[0.03] border border-white/10 rounded-3xl p-5 flex flex-col justify-between flex-1 min-h-0 animate-in fade-in zoom-in duration-500">
-              <div className="flex items-center justify-between mb-3 shrink-0">
-                <div className="flex items-center gap-3">
-                  <span className="font-bold text-sm tracking-wider uppercase text-neutral-300">7-Day Oura Trends</span>
-                  <span className="text-xs bg-white/10 text-neutral-200 px-2.5 py-0.5 rounded-md font-mono font-bold">Avg {avgHours}h</span>
+          <div className="bg-white/[0.03] border border-white/10 rounded-3xl p-5 flex flex-col justify-between flex-1 min-h-0 animate-in fade-in zoom-in duration-500">
+            <div className="flex items-center justify-between mb-3 shrink-0">
+              <div className="flex items-center gap-3">
+                <span className="font-bold text-sm tracking-wider uppercase text-neutral-300">7-Day Oura Trends</span>
+                <span className="text-xs bg-white/10 text-neutral-200 px-2.5 py-0.5 rounded-md font-mono font-bold">Avg {avgHours}h</span>
+              </div>
+              <BarChart3 className="w-5 h-5 text-indigo-400" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3.5 flex-1 min-h-0">
+              <div className="bg-black/40 p-3.5 rounded-2xl border border-white/5 flex flex-col justify-between min-w-0 overflow-hidden">
+                <div className="flex items-center justify-between text-[11px] text-neutral-300 font-bold uppercase tracking-wider mb-2 shrink-0">
+                  <span className="truncate">Sleep vs Ready</span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-indigo-400"></span>S</span>
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>R</span>
+                  </div>
                 </div>
-                <BarChart3 className="w-5 h-5 text-indigo-400" />
+
+                <div className="flex items-end justify-between gap-1.5 flex-1 min-h-0 pt-2">
+                  {history.length > 0 ? (
+                    history.map((d: any, i: number) => (
+                      <div key={i} className="flex flex-col items-center flex-1 min-w-0 h-full justify-end">
+                        <div className="flex items-end justify-center gap-[2px] w-full flex-1 min-h-0">
+                          <div className="flex-1 max-w-[10px] bg-indigo-400 rounded-t-sm transition-all duration-500" style={{ height: `${Math.max(d.sleep || 8, 8)}%` }} />
+                          <div className="flex-1 max-w-[10px] bg-amber-400 rounded-t-sm transition-all duration-500" style={{ height: `${Math.max(d.readiness || 8, 8)}%` }} />
+                        </div>
+                        <span className="text-[11px] text-neutral-400 font-mono mt-1.5 uppercase font-bold leading-none">{d.label}</span>
+                      </div>
+                    ))
+                  ) : <span className="text-sm text-neutral-500 m-auto">Syncing...</span>}
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3.5 flex-1 min-h-0">
-                <div className="bg-black/40 p-3.5 rounded-2xl border border-white/5 flex flex-col justify-between min-w-0 overflow-hidden">
-                  <div className="flex items-center justify-between text-[11px] text-neutral-300 font-bold uppercase tracking-wider mb-2 shrink-0">
-                    <span className="truncate">Sleep vs Ready</span>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-indigo-400"></span>S</span>
-                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>R</span>
-                    </div>
-                  </div>
+              <div className="bg-black/40 p-3.5 rounded-2xl border border-white/5 flex flex-col justify-between min-w-0 overflow-hidden">
+                <div className="flex items-center justify-between text-[11px] text-neutral-300 font-bold uppercase tracking-wider mb-2 shrink-0">
+                  <span className="truncate">Hours Asleep</span>
+                  <span className="text-emerald-400 font-mono shrink-0">8h Goal</span>
+                </div>
 
-                  <div className="flex items-end justify-between gap-1.5 flex-1 min-h-0 pt-2">
-                    {history.length > 0 ? (
-                      history.map((d: any, i: number) => (
+                <div className="flex items-end justify-between gap-1.5 flex-1 min-h-0 pt-2">
+                  {history.length > 0 ? (
+                    history.map((d: any, i: number) => {
+                      const heightPct = Math.min(Math.max((d.hours / 10) * 100, 10), 100);
+                      const hitGoal = d.hours >= 7.5;
+                      return (
                         <div key={i} className="flex flex-col items-center flex-1 min-w-0 h-full justify-end">
-                          <div className="flex items-end justify-center gap-[2px] w-full flex-1 min-h-0">
-                            <div className="flex-1 max-w-[10px] bg-indigo-400 rounded-t-sm transition-all duration-500" style={{ height: `${Math.max(d.sleep || 8, 8)}%` }} />
-                            <div className="flex-1 max-w-[10px] bg-amber-400 rounded-t-sm transition-all duration-500" style={{ height: `${Math.max(d.readiness || 8, 8)}%` }} />
+                          <span className="text-[10px] text-neutral-200 font-mono mb-1 font-bold leading-none tracking-tighter">{d.hours > 0 ? d.hours : ''}</span>
+                          <div className="w-full flex justify-center items-end flex-1 min-h-0 px-0.5">
+                            <div className={`w-full max-w-[16px] rounded-t-sm transition-all duration-500 ${hitGoal ? 'bg-emerald-400' : 'bg-sky-400/80'}`} style={{ height: `${heightPct}%` }} />
                           </div>
                           <span className="text-[11px] text-neutral-400 font-mono mt-1.5 uppercase font-bold leading-none">{d.label}</span>
                         </div>
-                      ))
-                    ) : <span className="text-sm text-neutral-500 m-auto">Syncing...</span>}
-                  </div>
-                </div>
-
-                <div className="bg-black/40 p-3.5 rounded-2xl border border-white/5 flex flex-col justify-between min-w-0 overflow-hidden">
-                  <div className="flex items-center justify-between text-[11px] text-neutral-300 font-bold uppercase tracking-wider mb-2 shrink-0">
-                    <span className="truncate">Hours Asleep</span>
-                    <span className="text-emerald-400 font-mono shrink-0">8h Goal</span>
-                  </div>
-
-                  <div className="flex items-end justify-between gap-1.5 flex-1 min-h-0 pt-2">
-                    {history.length > 0 ? (
-                      history.map((d: any, i: number) => {
-                        const heightPct = Math.min(Math.max((d.hours / 10) * 100, 10), 100);
-                        const hitGoal = d.hours >= 7.5;
-                        return (
-                          <div key={i} className="flex flex-col items-center flex-1 min-w-0 h-full justify-end">
-                            <span className="text-[10px] text-neutral-200 font-mono mb-1 font-bold leading-none tracking-tighter">{d.hours > 0 ? d.hours : ''}</span>
-                            <div className="w-full flex justify-center items-end flex-1 min-h-0 px-0.5">
-                              <div className={`w-full max-w-[16px] rounded-t-sm transition-all duration-500 ${hitGoal ? 'bg-emerald-400' : 'bg-sky-400/80'}`} style={{ height: `${heightPct}%` }} />
-                            </div>
-                            <span className="text-[11px] text-neutral-400 font-mono mt-1.5 uppercase font-bold leading-none">{d.label}</span>
-                          </div>
-                        );
-                      })
-                    ) : <span className="text-sm text-neutral-500 m-auto">Syncing...</span>}
-                  </div>
+                      );
+                    })
+                  ) : <span className="text-sm text-neutral-500 m-auto">Syncing...</span>}
                 </div>
               </div>
             </div>
-          )}
+          </div>
         </div>
 
         {/* RIGHT COLUMN: SCHEDULE & REMINDERS */}
