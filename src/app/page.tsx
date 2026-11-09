@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Activity, BarChart3, Calendar, Sun, CloudRain, ArrowRight,
-  Cake, Sparkles, GraduationCap, MapPin, Users, BookOpen, CheckCircle2, X
+  Cake, Sparkles, GraduationCap, MapPin, Users, BookOpen, CheckCircle2, X, Mail
 } from 'lucide-react';
 
 export default function AmbientDashboard() {
@@ -15,9 +15,9 @@ export default function AmbientDashboard() {
     events: [],
     news: [],
     reminders: [],
+    emails: { gmail: { unread: 0, total: 0 }, uni: { unread: 0, total: 0 } }
   });
 
-  // 1. CPU OPTIMIZATION: Update clock every 10 seconds instead of 1 second to stop UI stutter
   useEffect(() => {
     setNow(new Date());
     const timer = setInterval(() => setNow(new Date()), 10000);
@@ -27,19 +27,22 @@ export default function AmbientDashboard() {
   useEffect(() => {
     const fetchDashboard = async () => {
       try {
-        const [dashRes, remRes] = await Promise.all([
+        const [dashRes, remRes, emailRes] = await Promise.all([
           fetch('/api/dashboard', { cache: 'no-store' }),
-          fetch('/api/reminders', { cache: 'no-store' })
+          fetch('/api/reminders', { cache: 'no-store' }),
+          fetch('/api/emails', { cache: 'no-store' })
         ]);
         
-        if (dashRes.ok) {
-          const dashJson = await dashRes.json();
-          setData((p: any) => ({ ...p, ...dashJson }));
-        }
+        let newData = {};
+        if (dashRes.ok) newData = { ...newData, ...(await dashRes.json()) };
         if (remRes.ok) {
           const remJson = await remRes.json();
-          setData((p: any) => ({ ...p, reminders: Array.isArray(remJson) ? remJson : (remJson.items || []) }));
+          newData = { ...newData, reminders: Array.isArray(remJson) ? remJson : (remJson.items || []) };
         }
+        if (emailRes.ok) {
+          newData = { ...newData, emails: await emailRes.json() };
+        }
+        setData((p: any) => ({ ...p, ...newData }));
       } catch (e) { console.error(e); }
     };
     fetchDashboard();
@@ -47,7 +50,6 @@ export default function AmbientDashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  // TV D-PAD LISTENER
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'ArrowLeft') setActiveModal(prev => prev === 'oura' ? null : 'oura');
@@ -141,7 +143,6 @@ export default function AmbientDashboard() {
     </div>
   );
 
-  // 2. MODAL OVERLAP FIX: Use solid opaque background instead of blur
   const renderModal = () => {
     if (!activeModal) return null;
     return (
@@ -211,89 +212,135 @@ export default function AmbientDashboard() {
     <main className={`h-screen w-screen overflow-hidden bg-black text-white p-8 flex flex-col justify-between gap-6 select-none font-sans transition-opacity duration-1000 ${isEvening ? 'opacity-80' : 'opacity-100'}`}>
       {renderModal()}
       
-      {/* 3. GPU HARDWARE ACCELERATION: translate3d forces Fire TV to use GPU for smooth ticker */}
       <style>{`
-        @keyframes ticker { 
-          0% { transform: translate3d(0, 0, 0); } 
-          100% { transform: translate3d(-50%, 0, 0); } 
-        }
-        .animate-ticker { 
-          display: flex; 
-          width: max-content; 
-          animation: ticker 50s linear infinite; 
-          will-change: transform;
-        }
+        @keyframes ticker { 0% { transform: translate3d(0, 0, 0); } 100% { transform: translate3d(-50%, 0, 0); } }
+        .animate-ticker { display: flex; width: max-content; animation: ticker 50s linear infinite; will-change: transform; }
       `}</style>
 
-      {/* TOP HEADER */}
-      <header className="grid grid-cols-12 gap-6 items-center shrink-0">
+      {/* TOP HEADER: LIQUID GLASS GRID */}
+      <header className="grid grid-cols-12 gap-6 items-stretch shrink-0 h-28">
+        {/* Clock */}
         <div className="col-span-3 flex flex-col justify-center">
           <div className="text-7xl font-medium tracking-tighter text-white/95">{timeString}</div>
           <div className="text-lg font-medium text-white/40 mt-1">{dateString}</div>
         </div>
 
-        <GlassCard className="col-span-5 flex items-center gap-5 !p-4 !rounded-2xl transition-all duration-700">
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${isMorning ? 'bg-amber-400/20 text-amber-400' : isDeepWork ? 'bg-indigo-400/20 text-indigo-400' : 'bg-white/10 text-white'}`}>
-            {isMorning ? <Sun className="w-5 h-5" /> : isDeepWork ? <BookOpen className="w-5 h-5" /> : <ArrowRight className="w-5 h-5" />}
+        {/* Next Up (Sleek Compact Pill-Card) */}
+        <GlassCard className="col-span-3 flex flex-col justify-center gap-1.5 !p-5 transition-all duration-700">
+          <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${nextEvent ? 'bg-sky-400 animate-pulse' : 'bg-white/20'}`}></div>
+            <span className="text-[11px] font-medium uppercase tracking-widest text-white/50">
+              {isMorning ? 'Morning' : isDeepWork ? 'Focus' : 'Next Up'}
+            </span>
           </div>
-          <div className="flex flex-col min-w-0">
-            <div className="flex items-center gap-2 mb-0.5">
-              <span className="text-[11px] font-medium uppercase tracking-widest text-white/50">
-                {isMorning ? 'Morning' : isDeepWork ? 'Focus' : 'Next'}
-              </span>
-              {nextEvent && <span className="text-[11px] font-medium text-white/40">{getRelativeTime(nextEvent.start)}</span>}
-            </div>
-            <div className="text-lg font-medium text-white/90 truncate">{nextEvent ? nextEvent.summary : 'Clear Schedule'}</div>
+          <div className="text-xl font-medium text-white/95 truncate">
+            {nextEvent ? nextEvent.summary : 'Clear Schedule'}
+          </div>
+          <div className="text-sm font-medium text-white/40">
+            {nextEvent ? getRelativeTime(nextEvent.start) : 'Relax'}
           </div>
         </GlassCard>
 
-        <div className="col-span-4 flex justify-end items-center gap-8 text-right">
-          <div className="flex flex-col items-end">
-             <div className="text-[11px] font-medium uppercase tracking-widest text-white/40 mb-1">Weather</div>
-             <div className="text-3xl font-light text-white/90 flex items-center gap-2">
-               {data.weather?.temp}° <Sun className="w-6 h-6 text-white/60" />
-             </div>
-          </div>
-          <div className="w-px h-12 bg-white/10"></div>
-          <div className="flex flex-col items-end">
-             <div className="text-[11px] font-medium uppercase tracking-widest text-white/40 mb-1">Xmas</div>
-             <div className="text-3xl font-light text-white/90">{getCountdown('2026-12-09T17:00:00')}</div>
-          </div>
+        {/* All Countdowns Restored */}
+        <div className="col-span-6 grid grid-cols-4 gap-5 h-full">
+          <GlassCard className="!p-4 flex flex-col justify-between items-center text-center">
+            <span className="text-[10px] font-medium uppercase tracking-widest text-white/40">Weather</span>
+            <div className="flex items-center gap-2">
+              <span className="text-3xl font-light text-white/90">{data.weather?.temp}°</span>
+              <Sun className="w-5 h-5 text-white/60" />
+            </div>
+          </GlassCard>
+          <GlassCard className="!p-4 flex flex-col justify-between items-center text-center">
+            <span className="text-[10px] font-medium uppercase tracking-widest text-white/40">Birthday</span>
+            <span className="text-3xl font-light text-white/90">{getCountdown('2026-12-03T00:00:00')}</span>
+          </GlassCard>
+          <GlassCard className="!p-4 flex flex-col justify-between items-center text-center">
+            <span className="text-[10px] font-medium uppercase tracking-widest text-white/40">Xmas</span>
+            <span className="text-3xl font-light text-white/90">{getCountdown('2026-12-09T17:00:00')}</span>
+          </GlassCard>
+          <GlassCard className="!p-4 flex flex-col justify-between items-center text-center">
+            <span className="text-[10px] font-medium uppercase tracking-widest text-white/40">Uni End</span>
+            <span className="text-3xl font-light text-white/90">{getCountdown('2027-03-19T17:00:00')}</span>
+          </GlassCard>
         </div>
       </header>
 
       {/* MAIN CONTENT GRID */}
       <div className="grid grid-cols-12 gap-6 flex-1 min-h-0">
         
-        {/* LEFT COLUMN: OURA */}
+        {/* LEFT COLUMN */}
         <div className={`${leftColSpan} flex flex-col gap-6 min-h-0 transition-all duration-700`}>
-          <GlassCard className="flex flex-col justify-between shrink-0 !pb-8">
-            <div className="flex items-center gap-2 mb-6">
+          {/* Biometrics */}
+          <GlassCard className="flex flex-col justify-between shrink-0 !pb-6">
+            <div className="flex items-center gap-2 mb-5">
               <Activity className="w-4 h-4 text-white/40" />
               <span className="font-medium text-sm text-white/40 uppercase tracking-widest">Biometrics</span>
             </div>
-            <div className="grid grid-cols-2 gap-y-8 gap-x-4">
+            <div className="grid grid-cols-2 gap-y-6 gap-x-4">
               <div>
                 <div className="text-sm font-medium text-white/40 mb-1">Readiness</div>
-                <div className="text-4xl font-light text-white">{data.oura?.readiness}</div>
+                <div className="text-3xl font-light text-white">{data.oura?.readiness}</div>
               </div>
               <div>
                 <div className="text-sm font-medium text-white/40 mb-1">Sleep</div>
-                <div className="text-4xl font-light text-white">{data.oura?.sleep}</div>
+                <div className="text-3xl font-light text-white">{data.oura?.sleep}</div>
               </div>
               <div>
                 <div className="text-sm font-medium text-white/40 mb-1">Steps</div>
-                <div className="text-4xl font-light text-white">{stepsFormatted}</div>
+                <div className="text-3xl font-light text-white">{stepsFormatted}</div>
               </div>
               <div>
                 <div className="text-sm font-medium text-white/40 mb-1">Stress</div>
-                <div className="text-4xl font-light text-white">{data.oura?.stress}<span className="text-lg text-white/40 ml-0.5">m</span></div>
+                <div className="text-3xl font-light text-white">{data.oura?.stress}<span className="text-sm text-white/40 ml-0.5">m</span></div>
               </div>
             </div>
           </GlassCard>
 
+          {/* New Email Widget */}
+          <GlassCard className="flex flex-col shrink-0">
+            <div className="flex items-center gap-2 mb-4 shrink-0">
+              <Mail className="w-4 h-4 text-white/40" />
+              <span className="font-medium text-sm text-white/40 uppercase tracking-widest">Inboxes</span>
+            </div>
+            <div className="flex flex-col gap-4">
+              {/* Personal Inbox */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-rose-500/20 flex items-center justify-center shrink-0">
+                    <Mail className="w-4 h-4 text-rose-400" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-white/90 font-medium leading-tight">Personal</span>
+                    <span className="text-white/40 text-xs">Gmail</span>
+                  </div>
+                </div>
+                <div className="flex flex-col items-end">
+                  <span className="text-rose-400 font-medium leading-tight">{data.emails?.gmail?.unread || 0} Unread</span>
+                  <span className="text-white/40 text-xs">{data.emails?.gmail?.total || 0} Total</span>
+                </div>
+              </div>
+              {/* Uni Inbox */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center shrink-0">
+                    <GraduationCap className="w-4 h-4 text-purple-400" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-white/90 font-medium leading-tight">University</span>
+                    <span className="text-white/40 text-xs">Exchange</span>
+                  </div>
+                </div>
+                <div className="flex flex-col items-end">
+                  <span className="text-purple-400 font-medium leading-tight">{data.emails?.uni?.unread || 0} Unread</span>
+                  <span className="text-white/40 text-xs">{data.emails?.uni?.total || 0} Total</span>
+                </div>
+              </div>
+            </div>
+          </GlassCard>
+
+          {/* Oura Trends */}
           <GlassCard className="flex flex-col flex-1 min-h-0">
-            <div className="flex items-center justify-between mb-6 shrink-0">
+            <div className="flex items-center justify-between mb-4 shrink-0">
               <div className="flex items-center gap-2">
                 <BarChart3 className="w-4 h-4 text-white/40" />
                 <span className="font-medium text-sm text-white/40 uppercase tracking-widest">7-Day Trends</span>
@@ -305,11 +352,11 @@ export default function AmbientDashboard() {
                 const h = Math.min(Math.max((d.hours / 10) * 100, 10), 100);
                 return (
                   <div key={i} className="flex flex-col items-center flex-1 min-w-0 h-full justify-end group">
-                    <span className="text-[10px] text-white/30 font-medium mb-2 opacity-0 transition-opacity">{d.hours > 0 ? d.hours : ''}</span>
+                    <span className="text-[10px] text-white/30 font-medium mb-1 opacity-0 transition-opacity">{d.hours > 0 ? d.hours : ''}</span>
                     <div className="w-full flex justify-center items-end flex-1 min-h-0 px-1">
                       <div className="w-full max-w-[12px] rounded-full transition-all duration-500 bg-white/20" style={{ height: `${h}%` }} />
                     </div>
-                    <span className="text-[9px] text-white/40 font-medium mt-3 uppercase">{d.label}</span>
+                    <span className="text-[9px] text-white/40 font-medium mt-2 uppercase">{d.label}</span>
                   </div>
                 );
               }) : <span className="text-sm text-white/40 m-auto">Syncing...</span>}
@@ -317,9 +364,8 @@ export default function AmbientDashboard() {
           </GlassCard>
         </div>
 
-        {/* RIGHT COLUMN: LIST ROWS */}
+        {/* RIGHT COLUMN */}
         <div className={`${rightColSpan} flex flex-col gap-6 min-h-0 transition-all duration-700`}>
-          
           {/* SCHEDULE */}
           <GlassCard className="flex flex-col flex-1 min-h-0">
             <div className="flex items-center gap-2 mb-4 shrink-0">
