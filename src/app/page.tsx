@@ -31,17 +31,12 @@ export default function AmbientDashboard() {
           fetch('/api/reminders', { cache: 'no-store' })
         ]);
         
-        if (dashRes.ok) {
-          const dashJson = await dashRes.json();
-          setData((p: any) => ({ ...p, ...dashJson }));
-        }
+        if (dashRes.ok) setData((p: any) => ({ ...p, ...(await dashRes.json()) }));
         if (remRes.ok) {
           const remJson = await remRes.json();
           setData((p: any) => ({ ...p, reminders: Array.isArray(remJson) ? remJson : (remJson.items || []) }));
         }
-      } catch (e) {
-        console.error('Failed to fetch dashboard data:', e);
-      }
+      } catch (e) { console.error(e); }
     };
     fetchDashboard();
     const interval = setInterval(fetchDashboard, 300000);
@@ -61,12 +56,10 @@ export default function AmbientDashboard() {
   }, []);
 
   const getCountdown = (targetIso: string) => {
-    if (!now) return '--d --h';
+    if (!now) return '--d';
     const diff = new Date(targetIso).getTime() - now.getTime();
-    if (diff <= 0) return '0d 0h';
-    const d = Math.floor(diff / 86400000);
-    const h = Math.floor((diff % 86400000) / 3600000);
-    return `${d}d ${h}h`;
+    if (diff <= 0) return '0d';
+    return `${Math.floor(diff / 86400000)}d`;
   };
 
   const getRelativeTime = (dateStr: string) => {
@@ -74,65 +67,52 @@ export default function AmbientDashboard() {
     const diff = new Date(dateStr).getTime() - now.getTime();
     if (diff <= 0) return 'Now';
     const mins = Math.floor(diff / 60000);
-    if (mins < 60) return `in ${mins}m`;
+    if (mins < 60) return `${mins}m`;
     const hrs = Math.floor(mins / 60);
-    const remMins = mins % 60;
-    if (hrs < 24) return `in ${hrs}h ${remMins}m`;
-    const days = Math.floor(hrs / 24);
-    return `in ${days}d ${hrs % 24}h`;
+    if (hrs < 24) return `${hrs}h ${mins % 60}m`;
+    return `${Math.floor(hrs / 24)}d`;
   };
 
   const getEventBadge = (summary: string = '') => {
     const s = summary.toLowerCase();
-    if (s.includes('walk') || s.includes('->') || s.includes('→') || s.includes('transit') || s.includes('train') || s.includes('drive')) {
-      return { label: 'TRANSIT', icon: MapPin, classes: 'bg-neutral-500/20 text-neutral-300 border-neutral-500/30' };
-    }
-    if (s.includes('lecture')) return { label: 'LECTURE', icon: GraduationCap, classes: 'bg-purple-500/20 text-purple-300 border-purple-500/30' };
-    if (s.includes('seminar')) return { label: 'SEMINAR', icon: Users, classes: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30' };
-    if (s.includes('tutorial')) return { label: 'TUTORIAL', icon: BookOpen, classes: 'bg-sky-500/20 text-sky-300 border-sky-500/30' };
-    return { label: 'EVENT', icon: Calendar, classes: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' };
+    if (s.includes('walk') || s.includes('->') || s.includes('transit')) return { label: 'Transit', icon: MapPin, color: 'text-neutral-400', dot: 'bg-neutral-400' };
+    if (s.includes('lecture')) return { label: 'Lecture', icon: GraduationCap, color: 'text-purple-400', dot: 'bg-purple-400' };
+    if (s.includes('seminar')) return { label: 'Seminar', icon: Users, color: 'text-indigo-400', dot: 'bg-indigo-400' };
+    if (s.includes('tutorial')) return { label: 'Tutorial', icon: BookOpen, color: 'text-sky-400', dot: 'bg-sky-400' };
+    return { label: 'Event', icon: Calendar, color: 'text-emerald-400', dot: 'bg-emerald-400' };
   };
 
   const getReminderListStyle = (rawList: any = '') => {
-    const listName = (typeof rawList === 'string' ? rawList : rawList?.title || rawList?.name || 'General').trim();
-    const l = listName.toLowerCase();
-    if (l.includes('household')) return { name: 'Household', classes: 'bg-amber-500/20 text-amber-300 border-amber-500/30', borderLeft: 'border-l-amber-400', dot: 'bg-amber-400' };
-    if (l.includes('health')) return { name: 'Health', classes: 'bg-red-500/20 text-red-300 border-red-500/30', borderLeft: 'border-l-red-500', dot: 'bg-red-500' };
-    if (l.includes('finance')) return { name: 'Finances', classes: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30', borderLeft: 'border-l-emerald-400', dot: 'bg-emerald-400' };
-    if (l.includes('work')) return { name: 'Work', classes: 'bg-neutral-500/20 text-neutral-300 border-neutral-500/30', borderLeft: 'border-l-neutral-400', dot: 'bg-neutral-400' };
-    if (l.includes('shopping')) return { name: 'Shopping', classes: 'bg-sky-500/20 text-sky-300 border-sky-500/30', borderLeft: 'border-l-sky-400', dot: 'bg-sky-400' };
-    if (l.includes('uni misc') || l.includes('uni')) return { name: 'Uni Misc', classes: 'bg-purple-500/20 text-purple-300 border-purple-500/30', borderLeft: 'border-l-purple-500', dot: 'bg-purple-400' };
-    if (l.includes('duglj')) return { name: 'DUGLJ', classes: 'bg-blue-900/40 text-blue-300 border-blue-600/40', borderLeft: 'border-l-blue-600', dot: 'bg-blue-600' };
-    if (l.includes('exam')) return { name: 'Exams', classes: 'bg-red-600/20 text-red-300 border-red-500/30', borderLeft: 'border-l-red-600', dot: 'bg-red-600' };
-    return { name: listName || 'Task', classes: 'bg-white/10 text-neutral-300 border-white/10', borderLeft: 'border-l-neutral-500', dot: 'bg-neutral-400' };
+    const l = (typeof rawList === 'string' ? rawList : rawList?.title || rawList?.name || 'General').trim().toLowerCase();
+    if (l.includes('household')) return { name: 'Household', color: 'text-amber-400', dot: 'bg-amber-400' };
+    if (l.includes('health')) return { name: 'Health', color: 'text-red-400', dot: 'bg-red-400' };
+    if (l.includes('finance')) return { name: 'Finances', color: 'text-emerald-400', dot: 'bg-emerald-400' };
+    if (l.includes('work')) return { name: 'Work', color: 'text-neutral-400', dot: 'bg-neutral-400' };
+    if (l.includes('shopping')) return { name: 'Shopping', color: 'text-sky-400', dot: 'bg-sky-400' };
+    if (l.includes('uni')) return { name: 'Uni', color: 'text-purple-400', dot: 'bg-purple-400' };
+    if (l.includes('duglj')) return { name: 'DUGLJ', color: 'text-blue-500', dot: 'bg-blue-500' };
+    if (l.includes('exam')) return { name: 'Exams', color: 'text-red-500', dot: 'bg-red-500' };
+    return { name: l || 'Task', color: 'text-neutral-400', dot: 'bg-neutral-500' };
   };
 
   const timeString = now ? now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '--:--';
-  const dateString = now ? now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' }).toUpperCase() : 'LOADING...';
+  const dateString = now ? now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }) : 'Loading...';
 
   const history: any[] = data.oura?.history || [];
-  const validHours = history.filter((d: any) => d.hours > 0);
-  const avgHours = validHours.length > 0 ? (validHours.reduce((acc: any, d: any) => acc + d.hours, 0) / validHours.length).toFixed(1) : '0.0';
+  const avgHours = history.length > 0 ? (history.reduce((acc: any, d: any) => acc + (d.hours||0), 0) / history.length).toFixed(1) : '0.0';
   const stepsFormatted = typeof data.oura?.steps === 'number' ? data.oura.steps.toLocaleString('en-GB') : data.oura?.steps ?? '--';
 
   const nextEvent = data.events && data.events.length > 0 ? data.events[0] : null;
 
-  const groupedEvents: Record<string, { badge?: string; dateLabel: string; isToday: boolean; items: any[] }> = {};
+  const groupedEvents: Record<string, { dateLabel: string; isToday: boolean; items: any[] }> = {};
   if (now && data.events) {
     const todayIso = now.toISOString().split('T')[0];
-    const tomDate = new Date(now);
-    tomDate.setDate(tomDate.getDate() + 1);
-    const tomorrowIso = tomDate.toISOString().split('T')[0];
-
-    data.events.slice(0, 10).forEach((ev: any) => {
+    data.events.slice(0, 8).forEach((ev: any) => {
       const evDate = new Date(ev.start);
       const iso = evDate.toISOString().split('T')[0];
-      const formattedDate = evDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' }).toUpperCase();
+      const formattedDate = iso === todayIso ? 'Today' : evDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric' });
       if (!groupedEvents[iso]) {
-        let badge: string | undefined = undefined;
-        if (iso === todayIso) badge = 'TODAY';
-        else if (iso === tomorrowIso) badge = 'TOMORROW';
-        groupedEvents[iso] = { badge, dateLabel: formattedDate, isToday: iso === todayIso, items: [] };
+        groupedEvents[iso] = { dateLabel: formattedDate, isToday: iso === todayIso, items: [] };
       }
       groupedEvents[iso].items.push(ev);
     });
@@ -143,41 +123,41 @@ export default function AmbientDashboard() {
   const isDeepWork = currentHour >= 9 && currentHour < 17;
   const isEvening = currentHour >= 20 || currentHour < 6;
 
-  const bgTheme = isEvening ? 'bg-[#030508] text-neutral-400' : 'bg-[#070B14] text-white';
   const leftColSpan = isDeepWork ? 'col-span-3' : 'col-span-4'; 
   const rightColSpan = isDeepWork ? 'col-span-9' : 'col-span-8';
 
   const todayDateStr = now ? now.toLocaleDateString('en-CA') : '';
   const todayReminders = (data.reminders || [])
-    .filter((item: any) => {
-      if (!item.dueDate) return false;
-      const itemDateStr = new Date(item.dueDate).toLocaleDateString('en-CA');
-      return itemDateStr === todayDateStr;
-    })
+    .filter((item: any) => item.dueDate && new Date(item.dueDate).toLocaleDateString('en-CA') === todayDateStr)
     .sort((a: any, b: any) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+
+  // REUSABLE LIQUID GLASS CARD COMPONENT
+  const GlassCard = ({ children, className = '' }: { children: React.ReactNode, className?: string }) => (
+    <div className={`bg-white/[0.02] backdrop-blur-2xl border border-white/[0.08] shadow-[0_8px_32px_0_rgba(0,0,0,0.4)] rounded-3xl p-6 ${className}`}>
+      {children}
+    </div>
+  );
 
   const renderModal = () => {
     if (!activeModal) return null;
     return (
-      <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-12 animate-in fade-in duration-200">
-        <div className="bg-[#0c1222] border border-white/10 rounded-3xl w-full h-full p-8 flex flex-col relative shadow-2xl">
-          <button onClick={() => setActiveModal(null)} className="absolute top-6 right-6 p-2 bg-white/10 rounded-full text-white hover:bg-white/20 transition">
-            <X className="w-8 h-8" />
+      <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-3xl flex items-center justify-center p-12 animate-in fade-in duration-300">
+        <GlassCard className="w-full h-full flex flex-col relative border-white/20">
+          <button onClick={() => setActiveModal(null)} className="absolute top-8 right-8 p-3 bg-white/10 rounded-full text-white hover:bg-white/20 transition">
+            <X className="w-6 h-6" />
           </button>
           
           {activeModal === 'reminders' && (
             <div className="flex flex-col h-full">
-              <h2 className="text-4xl font-bold text-white mb-6">All Open Tasks (Master List)</h2>
-              <div className="grid grid-cols-3 gap-4 overflow-y-auto pr-2">
+              <h2 className="text-3xl font-semibold text-white mb-8">All Tasks</h2>
+              <div className="overflow-y-auto pr-4 space-y-1">
                 {data.reminders.map((r: any, i: number) => {
                    const listStyle = getReminderListStyle(r.list || r.listName);
                    return (
-                    <div key={i} className={`bg-white/5 p-4 rounded-xl border border-white/10 border-l-4 ${listStyle.borderLeft}`}>
-                      <div className="font-bold text-lg truncate mb-2">{r.title || r.text || 'Untitled'}</div>
-                      <span className={`text-[10px] font-extrabold tracking-wider uppercase px-2 py-0.5 rounded border inline-flex items-center gap-1.5 ${listStyle.classes}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${listStyle.dot}`}></span>
-                        {listStyle.name}
-                      </span>
+                    <div key={i} className="py-4 border-b border-white/5 last:border-0 flex items-center gap-4">
+                      <div className={`w-3 h-3 rounded-full border-2 ${listStyle.color.replace('text', 'border')} bg-transparent`}></div>
+                      <div className="font-medium text-lg flex-1 text-white/90">{r.title || r.text || 'Untitled'}</div>
+                      <span className="text-sm font-medium text-white/40">{listStyle.name}</span>
                     </div>
                    )
                 })}
@@ -187,23 +167,18 @@ export default function AmbientDashboard() {
           
           {activeModal === 'calendar' && (
             <div className="flex flex-col h-full">
-              <h2 className="text-4xl font-bold text-white mb-6">Expanded Calendar</h2>
-              <div className="grid grid-cols-2 gap-4 overflow-y-auto pr-2">
+              <h2 className="text-3xl font-semibold text-white mb-8">Calendar</h2>
+              <div className="overflow-y-auto pr-4 space-y-1">
                 {data.events.map((e: any, i: number) => {
                    const badge = getEventBadge(e.summary);
-                   const BadgeIcon = badge.icon;
                    return (
-                    <div key={i} className="bg-white/5 p-5 rounded-xl border border-white/10 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <span className={`text-[11px] font-extrabold tracking-wider uppercase px-2.5 py-1 rounded-md border flex items-center gap-1.5 shrink-0 ${badge.classes}`}>
-                          <BadgeIcon className="w-4 h-4" /> {badge.label}
-                        </span>
-                        <span className="font-bold text-lg">{e.summary}</span>
+                    <div key={i} className="py-4 border-b border-white/5 last:border-0 flex items-center gap-6">
+                      <div className="flex flex-col min-w-[80px]">
+                        <span className="text-white/90 font-medium">{new Date(e.start).toLocaleTimeString('en-GB', {hour: '2-digit', minute: '2-digit'})}</span>
+                        <span className="text-white/40 text-sm">{new Date(e.start).toLocaleDateString('en-GB', {weekday: 'short', day: 'numeric'})}</span>
                       </div>
-                      <div className="flex flex-col items-end shrink-0">
-                        <span className="text-neutral-400 font-mono text-sm">{new Date(e.start).toLocaleDateString('en-GB', {weekday: 'short', day: 'numeric', month: 'short'})}</span>
-                        <span className="text-white font-mono text-sm">{new Date(e.start).toLocaleTimeString('en-GB', {hour: '2-digit', minute: '2-digit'})}</span>
-                      </div>
+                      <div className={`w-2 h-2 rounded-full ${badge.dot}`}></div>
+                      <span className="font-medium text-lg text-white/90">{e.summary}</span>
                     </div>
                    )
                 })}
@@ -213,326 +188,201 @@ export default function AmbientDashboard() {
 
           {activeModal === 'oura' && (
             <div className="flex flex-col h-full items-center justify-center">
-              <Activity className="w-32 h-32 text-emerald-400 mb-8" />
-              <h2 className="text-5xl font-bold text-white mb-8">Detailed Biometrics</h2>
-              <div className="grid grid-cols-4 gap-6 text-center w-full max-w-4xl">
-                 <div className="bg-white/5 p-6 rounded-2xl border border-white/10"><div className="text-neutral-400 uppercase tracking-widest text-sm mb-2 font-bold">Readiness</div><div className="text-5xl font-mono text-amber-400">{data.oura.readiness}</div></div>
-                 <div className="bg-white/5 p-6 rounded-2xl border border-white/10"><div className="text-neutral-400 uppercase tracking-widest text-sm mb-2 font-bold">Sleep</div><div className="text-5xl font-mono text-indigo-400">{data.oura.sleep}</div></div>
-                 <div className="bg-white/5 p-6 rounded-2xl border border-white/10"><div className="text-neutral-400 uppercase tracking-widest text-sm mb-2 font-bold">Steps</div><div className="text-5xl font-mono text-emerald-400">{stepsFormatted}</div></div>
-                 <div className="bg-white/5 p-6 rounded-2xl border border-white/10"><div className="text-neutral-400 uppercase tracking-widest text-sm mb-2 font-bold">Stress</div><div className="text-5xl font-mono text-rose-400">{data.oura.stress}m</div></div>
+              <Activity className="w-16 h-16 text-white/80 mb-6" />
+              <h2 className="text-3xl font-semibold text-white mb-12">Health Metrics</h2>
+              <div className="grid grid-cols-4 gap-8 text-center w-full max-w-4xl">
+                 <div><div className="text-white/40 text-sm mb-2 font-medium">Readiness</div><div className="text-5xl font-light text-white">{data.oura.readiness}</div></div>
+                 <div><div className="text-white/40 text-sm mb-2 font-medium">Sleep</div><div className="text-5xl font-light text-white">{data.oura.sleep}</div></div>
+                 <div><div className="text-white/40 text-sm mb-2 font-medium">Steps</div><div className="text-5xl font-light text-white">{stepsFormatted}</div></div>
+                 <div><div className="text-white/40 text-sm mb-2 font-medium">Stress</div><div className="text-5xl font-light text-white">{data.oura.stress}<span className="text-2xl text-white/40 ml-1">m</span></div></div>
               </div>
             </div>
           )}
-        </div>
+        </GlassCard>
       </div>
     );
   };
 
   return (
-    <main className={`h-screen w-screen overflow-hidden p-6 flex flex-col justify-between gap-5 select-none font-sans transition-colors duration-1000 ${bgTheme}`}>
+    <main className={`h-screen w-screen overflow-hidden bg-black text-white p-8 flex flex-col justify-between gap-6 select-none font-sans transition-opacity duration-1000 ${isEvening ? 'opacity-80' : 'opacity-100'}`}>
       {renderModal()}
       
       <style>{`
-        @keyframes ticker {
-          0% { transform: translateX(0%); }
-          100% { transform: translateX(-50%); }
-        }
-        .animate-ticker {
-          display: flex;
-          width: max-content;
-          animation: ticker 45s linear infinite;
-        }
+        @keyframes ticker { 0% { transform: translateX(0%); } 100% { transform: translateX(-50%); } }
+        .animate-ticker { display: flex; width: max-content; animation: ticker 60s linear infinite; }
       `}</style>
 
-      {/* TOP BAR */}
-      <header className={`grid grid-cols-12 gap-4 items-stretch shrink-0 pb-4 border-b border-white/10 transition-opacity duration-1000 ${isEvening ? 'opacity-70' : 'opacity-100'}`}>
+      {/* TOP HEADER: LIQUID GLASS ANCHOR */}
+      <header className="grid grid-cols-12 gap-6 items-center shrink-0">
         <div className="col-span-3 flex flex-col justify-center">
-          <div className="text-7xl font-black tracking-tight leading-none text-white">
-            {timeString}
-          </div>
-          <div className="text-base font-bold tracking-widest text-neutral-400 uppercase mt-2">
-            {dateString}
-          </div>
+          <div className="text-7xl font-medium tracking-tighter text-white/95">{timeString}</div>
+          <div className="text-lg font-medium text-white/40 mt-1">{dateString}</div>
         </div>
 
-        <div className="col-span-4 bg-white/[0.04] border border-white/10 rounded-2xl px-5 py-3.5 flex items-center gap-4 min-w-0 transition-all duration-700">
-          <div className={`w-12 h-12 rounded-xl border flex items-center justify-center shrink-0 ${isMorning ? 'bg-amber-500/15 border-amber-500/30' : isDeepWork ? 'bg-indigo-500/15 border-indigo-500/30' : 'bg-sky-500/15 border-sky-500/30'}`}>
-            {isMorning ? <Sun className="w-6 h-6 text-amber-400" /> : isDeepWork ? <BookOpen className="w-6 h-6 text-indigo-400" /> : <ArrowRight className="w-6 h-6 text-sky-400" />}
+        <GlassCard className="col-span-5 flex items-center gap-5 !p-4 !rounded-2xl transition-all duration-700">
+          <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${isMorning ? 'bg-amber-400/20 text-amber-400' : isDeepWork ? 'bg-indigo-400/20 text-indigo-400' : 'bg-white/10 text-white'}`}>
+            {isMorning ? <Sun className="w-5 h-5" /> : isDeepWork ? <BookOpen className="w-5 h-5" /> : <ArrowRight className="w-5 h-5" />}
           </div>
-          <div className="flex flex-col justify-center min-w-0 flex-1">
-            <div className="flex items-center gap-2.5 mb-1">
-              <span className={`text-xs font-extrabold tracking-wider uppercase ${isMorning ? 'text-amber-400' : isDeepWork ? 'text-indigo-400' : 'text-sky-400'}`}>
-                {isMorning ? 'Morning Mode' : isDeepWork ? 'Deep Work Mode' : 'Next Up'}
+          <div className="flex flex-col min-w-0">
+            <div className="flex items-center gap-2 mb-0.5">
+              <span className="text-[11px] font-medium uppercase tracking-widest text-white/50">
+                {isMorning ? 'Morning' : isDeepWork ? 'Focus' : 'Next'}
               </span>
-              {nextEvent && (
-                <span className="text-xs font-mono font-bold bg-sky-500/20 text-sky-300 px-2.5 py-0.5 rounded-md border border-sky-500/30">
-                  {getRelativeTime(nextEvent.start)}
-                </span>
-              )}
+              {nextEvent && <span className="text-[11px] font-medium text-white/40">{getRelativeTime(nextEvent.start)}</span>}
             </div>
-            <div className="text-xl font-bold text-white truncate">
-              {nextEvent ? nextEvent.summary : 'No upcoming events'}
-            </div>
+            <div className="text-lg font-medium text-white/90 truncate">{nextEvent ? nextEvent.summary : 'Clear Schedule'}</div>
           </div>
-        </div>
+        </GlassCard>
 
-        <div className="col-span-5 grid grid-cols-4 gap-3 items-stretch">
-          <div className="bg-white/[0.04] border border-white/10 rounded-2xl px-3.5 py-3 flex items-center gap-3">
-            <Cake className="w-6 h-6 text-pink-400 shrink-0" />
-            <div className="min-w-0">
-              <div className="text-xl font-extrabold text-white font-mono leading-tight whitespace-nowrap">{getCountdown('2026-12-03T00:00:00')}</div>
-              <div className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider mt-1 whitespace-nowrap">Birthday • 03/12</div>
-            </div>
+        <div className="col-span-4 flex justify-end items-center gap-8 text-right">
+          <div className="flex flex-col items-end">
+             <div className="text-[11px] font-medium uppercase tracking-widest text-white/40 mb-1">Weather</div>
+             <div className="text-3xl font-light text-white/90 flex items-center gap-2">
+               {data.weather?.temp}° <Sun className="w-6 h-6 text-white/60" />
+             </div>
           </div>
-
-          <div className="bg-white/[0.04] border border-white/10 rounded-2xl px-3.5 py-3 flex items-center gap-3">
-            <Sparkles className="w-6 h-6 text-amber-400 shrink-0" />
-            <div className="min-w-0">
-              <div className="text-xl font-extrabold text-white font-mono leading-tight whitespace-nowrap">{getCountdown('2026-12-09T17:00:00')}</div>
-              <div className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider mt-1 whitespace-nowrap">Xmas • 09/12</div>
-            </div>
-          </div>
-
-          <div className="bg-white/[0.04] border border-white/10 rounded-2xl px-3.5 py-3 flex items-center gap-3">
-            <GraduationCap className="w-6 h-6 text-indigo-400 shrink-0" />
-            <div className="min-w-0">
-              <div className="text-xl font-extrabold text-white font-mono leading-tight whitespace-nowrap">{getCountdown('2027-03-19T17:00:00')}</div>
-              <div className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider mt-1 whitespace-nowrap">Uni End • 19/03</div>
-            </div>
-          </div>
-
-          <div className="bg-white/[0.04] border border-white/10 rounded-2xl px-4 py-3 flex items-center justify-center gap-3">
-            {Number(data.weather?.precipitation) > 0 ? (
-              <CloudRain className="w-8 h-8 text-sky-400 shrink-0" />
-            ) : (
-              <Sun className="w-8 h-8 text-amber-400 shrink-0" />
-            )}
-            <div>
-              <div className="text-3xl font-extrabold text-white leading-none">{data.weather?.temp}°C</div>
-              <div className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider mt-1.5 whitespace-nowrap">
-                AQI: {data.weather?.aqi} • {Number(data.weather?.precipitation) > 0 ? 'RAIN' : 'DRY'}
-              </div>
-            </div>
+          <div className="w-px h-12 bg-white/10"></div>
+          <div className="flex flex-col items-end">
+             <div className="text-[11px] font-medium uppercase tracking-widest text-white/40 mb-1">Xmas</div>
+             <div className="text-3xl font-light text-white/90">{getCountdown('2026-12-09T17:00:00')}</div>
           </div>
         </div>
       </header>
 
       {/* MAIN CONTENT GRID */}
-      <div className={`grid grid-cols-12 gap-5 flex-1 min-h-0 transition-opacity duration-1000 ${isEvening ? 'opacity-80' : 'opacity-100'}`}>
+      <div className="grid grid-cols-12 gap-6 flex-1 min-h-0">
         
-        {/* LEFT COLUMN: OURA */}
-        <div className={`${leftColSpan} flex flex-col gap-5 min-h-0 transition-all duration-700`}>
-          <div className="bg-white/[0.03] border border-white/10 rounded-3xl p-5 flex flex-col justify-between shrink-0">
-            <div className="flex items-center justify-between mb-4">
-              <span className="font-bold text-sm tracking-wider uppercase text-neutral-300">Oura Biometrics (Today)</span>
-              <Activity className="w-5 h-5 text-emerald-400" />
+        {/* LEFT COLUMN: OURA (Floating Text) */}
+        <div className={`${leftColSpan} flex flex-col gap-6 min-h-0 transition-all duration-700`}>
+          <GlassCard className="flex flex-col justify-between shrink-0 !pb-8">
+            <div className="flex items-center gap-2 mb-6">
+              <Activity className="w-4 h-4 text-white/40" />
+              <span className="font-medium text-sm text-white/40 uppercase tracking-widest">Biometrics</span>
             </div>
-            <div className="grid grid-cols-2 gap-3.5">
-              <div className="bg-black/40 border border-white/5 rounded-2xl px-4 py-4 flex items-center justify-between">
-                <span className="text-sm font-bold tracking-wider text-neutral-300 uppercase">Readiness</span>
-                <span className="text-4xl font-extrabold text-amber-400 font-mono">{data.oura?.readiness}</span>
+            <div className="grid grid-cols-2 gap-y-8 gap-x-4">
+              <div>
+                <div className="text-sm font-medium text-white/40 mb-1">Readiness</div>
+                <div className="text-4xl font-light text-white">{data.oura?.readiness}</div>
               </div>
-              <div className="bg-black/40 border border-white/5 rounded-2xl px-4 py-4 flex items-center justify-between">
-                <span className="text-sm font-bold tracking-wider text-neutral-300 uppercase">Sleep</span>
-                <span className="text-4xl font-extrabold text-indigo-400 font-mono">{data.oura?.sleep}</span>
+              <div>
+                <div className="text-sm font-medium text-white/40 mb-1">Sleep</div>
+                <div className="text-4xl font-light text-white">{data.oura?.sleep}</div>
               </div>
-              <div className="bg-black/40 border border-white/5 rounded-2xl px-4 py-4 flex items-center justify-between">
-                <span className="text-sm font-bold tracking-wider text-neutral-300 uppercase">Steps</span>
-                <span className="text-3xl font-extrabold text-emerald-400 font-mono">{stepsFormatted}</span>
+              <div>
+                <div className="text-sm font-medium text-white/40 mb-1">Steps</div>
+                <div className="text-4xl font-light text-white">{stepsFormatted}</div>
               </div>
-              <div className="bg-black/40 border border-white/5 rounded-2xl px-4 py-4 flex items-center justify-between">
-                <span className="text-sm font-bold tracking-wider text-neutral-300 uppercase">Stress</span>
-                <span className="text-4xl font-extrabold text-rose-400 font-mono">{data.oura?.stress}<span className="text-lg font-bold text-neutral-400 ml-0.5">m</span></span>
+              <div>
+                <div className="text-sm font-medium text-white/40 mb-1">Stress</div>
+                <div className="text-4xl font-light text-white">{data.oura?.stress}<span className="text-lg text-white/40 ml-0.5">m</span></div>
               </div>
             </div>
-          </div>
+          </GlassCard>
 
-          <div className="bg-white/[0.03] border border-white/10 rounded-3xl p-5 flex flex-col justify-between flex-1 min-h-0 animate-in fade-in zoom-in duration-500">
-            <div className="flex items-center justify-between mb-3 shrink-0">
-              <div className="flex items-center gap-3">
-                <span className="font-bold text-sm tracking-wider uppercase text-neutral-300">7-Day Oura Trends</span>
-                <span className="text-xs bg-white/10 text-neutral-200 px-2.5 py-0.5 rounded-md font-mono font-bold">Avg {avgHours}h</span>
+          <GlassCard className="flex flex-col flex-1 min-h-0">
+            <div className="flex items-center justify-between mb-6 shrink-0">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-white/40" />
+                <span className="font-medium text-sm text-white/40 uppercase tracking-widest">7-Day Trends</span>
               </div>
-              <BarChart3 className="w-5 h-5 text-indigo-400" />
+              <span className="text-xs text-white/40 font-medium">Avg {avgHours}h</span>
             </div>
-
-            <div className="grid grid-cols-2 gap-3.5 flex-1 min-h-0">
-              <div className="bg-black/40 p-3.5 rounded-2xl border border-white/5 flex flex-col justify-between min-w-0 overflow-hidden">
-                <div className="flex items-center justify-between text-[11px] text-neutral-300 font-bold uppercase tracking-wider mb-2 shrink-0">
-                  <span className="truncate">Sleep vs Ready</span>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-indigo-400"></span>S</span>
-                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>R</span>
+            <div className="flex items-end justify-between gap-2 flex-1 min-h-0 pb-2">
+              {history.length > 0 ? history.map((d: any, i: number) => {
+                const h = Math.min(Math.max((d.hours / 10) * 100, 10), 100);
+                return (
+                  <div key={i} className="flex flex-col items-center flex-1 min-w-0 h-full justify-end group">
+                    <span className="text-[10px] text-white/30 font-medium mb-2 opacity-0 transition-opacity">{d.hours > 0 ? d.hours : ''}</span>
+                    <div className="w-full flex justify-center items-end flex-1 min-h-0 px-1">
+                      <div className="w-full max-w-[12px] rounded-full transition-all duration-500 bg-white/20" style={{ height: `${h}%` }} />
+                    </div>
+                    <span className="text-[11px] text-white/40 font-medium mt-3 uppercase">{d.label}</span>
                   </div>
-                </div>
-
-                <div className="flex items-end justify-between gap-1.5 flex-1 min-h-0 pt-2">
-                  {history.length > 0 ? (
-                    history.map((d: any, i: number) => (
-                      <div key={i} className="flex flex-col items-center flex-1 min-w-0 h-full justify-end">
-                        <div className="flex items-end justify-center gap-[2px] w-full flex-1 min-h-0">
-                          <div className="flex-1 max-w-[10px] bg-indigo-400 rounded-t-sm transition-all duration-500" style={{ height: `${Math.max(d.sleep || 8, 8)}%` }} />
-                          <div className="flex-1 max-w-[10px] bg-amber-400 rounded-t-sm transition-all duration-500" style={{ height: `${Math.max(d.readiness || 8, 8)}%` }} />
-                        </div>
-                        <span className="text-[11px] text-neutral-400 font-mono mt-1.5 uppercase font-bold leading-none">{d.label}</span>
-                      </div>
-                    ))
-                  ) : <span className="text-sm text-neutral-500 m-auto">Syncing...</span>}
-                </div>
-              </div>
-
-              <div className="bg-black/40 p-3.5 rounded-2xl border border-white/5 flex flex-col justify-between min-w-0 overflow-hidden">
-                <div className="flex items-center justify-between text-[11px] text-neutral-300 font-bold uppercase tracking-wider mb-2 shrink-0">
-                  <span className="truncate">Hours Asleep</span>
-                  <span className="text-emerald-400 font-mono shrink-0">8h Goal</span>
-                </div>
-
-                <div className="flex items-end justify-between gap-1.5 flex-1 min-h-0 pt-2">
-                  {history.length > 0 ? (
-                    history.map((d: any, i: number) => {
-                      const heightPct = Math.min(Math.max((d.hours / 10) * 100, 10), 100);
-                      const hitGoal = d.hours >= 7.5;
-                      return (
-                        <div key={i} className="flex flex-col items-center flex-1 min-w-0 h-full justify-end">
-                          <span className="text-[10px] text-neutral-200 font-mono mb-1 font-bold leading-none tracking-tighter">{d.hours > 0 ? d.hours : ''}</span>
-                          <div className="w-full flex justify-center items-end flex-1 min-h-0 px-0.5">
-                            <div className={`w-full max-w-[16px] rounded-t-sm transition-all duration-500 ${hitGoal ? 'bg-emerald-400' : 'bg-sky-400/80'}`} style={{ height: `${heightPct}%` }} />
-                          </div>
-                          <span className="text-[11px] text-neutral-400 font-mono mt-1.5 uppercase font-bold leading-none">{d.label}</span>
-                        </div>
-                      );
-                    })
-                  ) : <span className="text-sm text-neutral-500 m-auto">Syncing...</span>}
-                </div>
-              </div>
+                );
+              }) : <span className="text-sm text-white/40 m-auto">Syncing...</span>}
             </div>
-          </div>
+          </GlassCard>
         </div>
 
-        {/* RIGHT COLUMN: SCHEDULE & REMINDERS */}
-        <div className={`${rightColSpan} flex flex-col gap-5 min-h-0 transition-all duration-700`}>
-          {/* LIVE SCHEDULE */}
-          <div className="bg-white/[0.03] border border-white/10 rounded-3xl p-5 flex flex-col flex-1 min-h-0">
-            <div className="flex items-center justify-between mb-3 shrink-0">
-              <div className="flex items-center gap-4">
-                <span className="font-bold text-sm tracking-wider uppercase text-neutral-300">Live Schedule</span>
-                <div className="flex items-center gap-3 text-xs font-bold text-neutral-300">
-                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>Main</span>
-                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-purple-500"></span>Uni</span>
-                </div>
-              </div>
-              <Calendar className="w-5 h-5 text-sky-400" />
+        {/* RIGHT COLUMN: LIST ROWS (Apple Style) */}
+        <div className={`${rightColSpan} flex flex-col gap-6 min-h-0 transition-all duration-700`}>
+          
+          {/* SCHEDULE */}
+          <GlassCard className="flex flex-col flex-1 min-h-0">
+            <div className="flex items-center gap-2 mb-4 shrink-0">
+              <Calendar className="w-4 h-4 text-white/40" />
+              <span className="font-medium text-sm text-white/40 uppercase tracking-widest">Schedule</span>
             </div>
-
-            <div className="flex-1 overflow-y-auto space-y-2.5 pr-1">
+            <div className="flex-1 overflow-y-auto pr-2">
               {Object.values(groupedEvents).length > 0 ? (
                 Object.values(groupedEvents).map((group, gIdx) => (
-                  <div key={gIdx} className="space-y-2">
-                    <div className="flex items-center gap-3">
-                      {group.badge && (
-                        <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded tracking-wider uppercase ${group.isToday ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30' : 'bg-white/10 text-neutral-200'}`}>
-                          {group.badge}
-                        </span>
-                      )}
-                      <span className="text-xs font-bold tracking-wider text-neutral-400 uppercase">{group.dateLabel}</span>
-                      <div className="flex-1 h-px bg-white/10"></div>
-                    </div>
-
-                    <div className="space-y-2">
+                  <div key={gIdx} className="mb-6 last:mb-0">
+                    <div className="text-[11px] font-medium text-white/40 uppercase tracking-widest mb-2 border-b border-white/10 pb-2">{group.dateLabel}</div>
+                    <div className="flex flex-col">
                       {group.items.map((ev: any, idx: number) => {
                         const badge = getEventBadge(ev.summary);
-                        const BadgeIcon = badge.icon;
                         const isUni = ev.calendar === 'Uni';
                         const evTime = new Date(ev.start).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-
                         return (
-                          <div key={idx} className={`bg-black/45 border border-white/5 border-l-4 ${isUni ? 'border-l-purple-500' : 'border-l-rose-500'} rounded-xl px-4 py-2.5 flex items-center justify-between gap-3`}>
-                            <div className="flex items-center gap-3 min-w-0">
-                              <span className={`text-[11px] font-extrabold tracking-wider uppercase px-2.5 py-1 rounded-md border flex items-center gap-1.5 shrink-0 min-w-[95px] justify-center ${badge.classes}`}>
-                                <BadgeIcon className="w-3.5 h-3.5 shrink-0" />
-                                {badge.label}
-                              </span>
-                              <span className="text-base font-bold text-white tracking-tight truncate">{ev.summary}</span>
+                          <div key={idx} className="py-3 flex items-center justify-between gap-4 border-b border-white/5 last:border-0">
+                            <div className="flex items-center gap-4 min-w-0">
+                              <span className="w-[45px] text-sm font-medium text-white/50">{evTime}</span>
+                              <div className={`w-1.5 h-1.5 rounded-full ${isUni ? 'bg-purple-400' : 'bg-white/40'}`}></div>
+                              <span className="text-lg font-medium text-white/90 truncate">{ev.summary}</span>
                             </div>
-                            <div className="flex items-center gap-3 shrink-0">
-                              {group.isToday && (
-                                <span className="text-[11px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded">
-                                  {getRelativeTime(ev.start)}
-                                </span>
-                              )}
-                              <span className="text-base font-mono font-bold text-neutral-200">{evTime}</span>
-                            </div>
+                            <span className="text-xs font-medium text-white/30">{badge.label}</span>
                           </div>
                         );
                       })}
                     </div>
                   </div>
                 ))
-              ) : <div className="text-sm text-neutral-500 m-auto flex items-center justify-center h-full">No upcoming schedule items</div>}
+              ) : <div className="text-sm text-white/40 m-auto flex items-center justify-center h-full">No upcoming schedule items</div>}
             </div>
-          </div>
+          </GlassCard>
 
-          {/* APPLE REMINDERS */}
-          <div className="bg-white/[0.03] border border-white/10 rounded-3xl p-5 flex flex-col flex-1 min-h-0">
-            <div className="flex items-center justify-between mb-3 shrink-0">
-              <div className="flex items-center gap-3">
-                <span className="font-bold text-sm tracking-wider uppercase text-neutral-300">Today's Reminders</span>
-                <span className="text-xs bg-sky-500/20 text-sky-300 border border-sky-500/30 px-2.5 py-0.5 rounded-md font-mono font-bold">{todayReminders.length} Due Today</span>
-              </div>
-              <CheckCircle2 className="w-5 h-5 text-sky-400" />
+          {/* REMINDERS */}
+          <GlassCard className="flex flex-col flex-1 min-h-0">
+            <div className="flex items-center gap-2 mb-4 shrink-0">
+              <CheckCircle2 className="w-4 h-4 text-white/40" />
+              <span className="font-medium text-sm text-white/40 uppercase tracking-widest">Today</span>
             </div>
-
-            <div className="flex-1 overflow-y-auto pr-1">
+            <div className="flex-1 overflow-y-auto pr-2">
               {todayReminders.length > 0 ? (
-                <div className="grid grid-cols-2 gap-2.5 content-start">
+                <div className="flex flex-col">
                   {todayReminders.map((item: any, idx: number) => {
                     const listStyle = getReminderListStyle(item.list || item.listName);
-                    const dueDateObj = new Date(item.dueDate);
-                    const hasTime = !isNaN(dueDateObj.getTime()) && (dueDateObj.getHours() !== 0 || dueDateObj.getMinutes() !== 0);
-                    const dueTime = hasTime ? dueDateObj.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : 'All day';
-
+                    const hasTime = !isNaN(new Date(item.dueDate).getTime()) && (new Date(item.dueDate).getHours() !== 0 || new Date(item.dueDate).getMinutes() !== 0);
                     return (
-                      <div key={idx} className={`bg-black/45 border border-white/5 border-l-4 ${listStyle.borderLeft} rounded-xl px-3 py-2 flex items-center justify-between gap-2.5 min-w-0`}>
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <span className={`text-[10px] font-extrabold tracking-wider uppercase px-2 py-0.5 rounded border flex items-center gap-1.5 shrink-0 ${listStyle.classes}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${listStyle.dot}`}></span>
-                            {listStyle.name}
-                          </span>
-                          <span className="text-sm font-bold text-white tracking-tight truncate">{item.title || item.text || 'Untitled Reminder'}</span>
+                      <div key={idx} className="py-3 flex items-center justify-between gap-4 border-b border-white/5 last:border-0">
+                        <div className="flex items-center gap-4 min-w-0">
+                          <div className={`w-3 h-3 rounded-full border-[1.5px] ${listStyle.color.replace('text', 'border')} bg-transparent`}></div>
+                          <span className="text-base font-medium text-white/90 truncate">{item.title || item.text}</span>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          {hasTime && <span className="text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded">{getRelativeTime(item.dueDate)}</span>}
-                          <span className="text-xs font-mono font-bold text-neutral-300">{dueTime}</span>
-                        </div>
+                        {hasTime && <span className="text-sm font-medium text-white/40">{new Date(item.dueDate).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>}
                       </div>
                     );
                   })}
                 </div>
-              ) : <div className="text-sm font-semibold text-neutral-500 m-auto flex items-center justify-center h-full">All done! No remaining reminders due today</div>}
+              ) : <div className="text-sm font-medium text-white/40 m-auto flex items-center justify-center h-full">All done for today.</div>}
             </div>
-          </div>
+          </GlassCard>
         </div>
       </div>
 
-      {/* BOTTOM BAR: BBC NEWS TICKER */}
-      <footer className={`bg-white/[0.03] border border-white/10 rounded-2xl px-4 py-2.5 flex items-center gap-4 shrink-0 overflow-hidden transition-opacity duration-1000 ${isEvening ? 'opacity-70' : 'opacity-100'}`}>
-        <div className="bg-rose-500/15 border border-rose-500/30 text-rose-400 px-3 py-1 rounded-lg text-xs font-extrabold tracking-wider uppercase flex items-center gap-2 shrink-0">
-          <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
-          BBC News
-        </div>
+      {/* BOTTOM TICKER */}
+      <GlassCard className="!p-3 !rounded-2xl shrink-0 overflow-hidden flex items-center gap-4">
+        <div className="text-[10px] font-medium uppercase tracking-widest text-white/40 shrink-0 border-r border-white/10 pr-4">BBC News</div>
         <div className="overflow-hidden flex-1 relative">
           {data.news && data.news.length > 0 ? (
             <div className="animate-ticker items-center">
               {[...data.news, ...data.news].map((headline: string, i: number) => (
-                <div key={i} className="flex items-center gap-3 mr-12 shrink-0">
-                  <span className="text-[10px] font-extrabold bg-rose-500/20 text-rose-300 border border-rose-500/30 px-1.5 py-0.5 rounded">BBC</span>
-                  <span className="text-base font-semibold text-neutral-200 whitespace-nowrap">{headline}</span>
-                </div>
+                <span key={i} className="text-sm font-medium text-white/70 whitespace-nowrap mr-12">{headline}</span>
               ))}
             </div>
-          ) : <span className="text-sm text-neutral-500">Loading headlines...</span>}
+          ) : <span className="text-sm text-white/40">Loading...</span>}
         </div>
-      </footer>
+      </GlassCard>
     </main>
   );
 }
