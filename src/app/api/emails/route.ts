@@ -1,28 +1,31 @@
-import { NextResponse } from 'next/server';
-import { createClient } from 'redis';
+import { NextResponse, connection } from 'next/server';
+import { getRedis, isAuthorizedCron } from '@/lib/redis';
 
-export async function GET(req: Request) {
+export async function GET() {
+  await connection();
   try {
-    const redis = await createClient({ url: process.env.REDIS_URL }).connect();
+    const redis = await getRedis();
     const data = await redis.get('apple_emails');
-    await redis.disconnect();
-    return NextResponse.json(data ? JSON.parse(data) : { gmail: { unread: 0, total: 0 }, uni: { unread: 0, total: 0 } });
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return NextResponse.json(
+      data ? JSON.parse(data) : { gmail: { unread: 0, total: 0 }, uni: { unread: 0, total: 0 } }
+    );
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Failed to fetch emails';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
 export async function POST(req: Request) {
   try {
-    if (req.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
+    if (!isAuthorizedCron(req.headers.get('authorization'))) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const body = await req.json();
-    const redis = await createClient({ url: process.env.REDIS_URL }).connect();
+    const redis = await getRedis();
     await redis.set('apple_emails', JSON.stringify(body));
-    await redis.disconnect();
     return NextResponse.json({ success: true });
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Failed to store emails';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

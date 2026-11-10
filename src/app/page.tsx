@@ -1,35 +1,167 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
-  Activity, Calendar, Sun, ArrowRight,
-  GraduationCap, MapPin, Users, BookOpen, CheckCircle2, X, Mail,
-  ChevronLeft, ChevronRight, ChevronDown
+  Activity,
+  Calendar,
+  Sun,
+  Moon,
+  Cloud,
+  CloudRain,
+  CloudSnow,
+  CloudLightning,
+  Umbrella,
+  GraduationCap,
+  MapPin,
+  Users,
+  BookOpen,
+  CheckCircle2,
+  X,
+  Mail,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  type LucideIcon,
 } from 'lucide-react';
 
-const NewsTicker = React.memo(({ news, isEvening }: { news: any[], isEvening: boolean }) => (
-  <div className={`bg-white/[0.03] border border-white/[0.08] shadow-[0_8px_32px_0_rgba(0,0,0,0.4)] rounded-3xl p-3 shrink-0 overflow-hidden flex items-center gap-4 transition-opacity duration-1000 ${isEvening ? 'opacity-70' : 'opacity-100'}`}>
-    <style>{`
-      @keyframes ticker { 0% { transform: translate3d(0, 0, 0); } 100% { transform: translate3d(-50%, 0, 0); } }
-      .animate-ticker { display: flex; width: max-content; animation: ticker 50s linear infinite; will-change: transform; }
-    `}</style>
-    <div className="text-[10px] font-medium uppercase tracking-widest text-white/40 shrink-0 border-r border-white/10 pr-4">BBC News</div>
-    <div className="overflow-hidden flex-1 relative">
-      {news && news.length > 0 ? (
-        <div className="animate-ticker items-center">
-          {[...news, ...news, ...news].map((headline: string, i: number) => (
-            <span key={i} className="text-sm font-medium text-white/70 whitespace-nowrap mr-12 shrink-0">{headline}</span>
-          ))}
-        </div>
-      ) : <span className="text-sm text-white/40">Loading...</span>}
+const TZ = 'Europe/London';
+
+interface WeatherData {
+  temp: number | string;
+  precipitation: number;
+  aqi: number | string;
+  weatherCode?: number;
+  isDay?: number;
+}
+
+interface OuraHistoryItem {
+  day: string;
+  label: string;
+  sleep: number;
+  readiness: number;
+  hours: number;
+}
+
+interface OuraData {
+  readiness: number | string;
+  sleep: number | string;
+  steps: number | string;
+  stress: string;
+  history: OuraHistoryItem[];
+}
+
+interface CalendarEvent {
+  summary: string;
+  start: string;
+  end?: string;
+  location?: string;
+  calendar?: 'Main' | 'Uni' | string;
+  isFullDay?: boolean;
+}
+
+interface ReminderListObject {
+  title?: string;
+  name?: string;
+}
+
+interface ReminderItem {
+  title?: string;
+  text?: string;
+  dueDate?: string;
+  list?: string | ReminderListObject;
+  listName?: string;
+}
+
+interface EmailBox {
+  unread: number;
+  total: number;
+}
+
+interface EmailsData {
+  gmail: EmailBox;
+  uni: EmailBox;
+}
+
+interface DashboardState {
+  weather: WeatherData;
+  oura: OuraData;
+  events: CalendarEvent[];
+  news: string[];
+  reminders: ReminderItem[];
+  emails: EmailsData;
+  updatedAt?: string;
+}
+
+const GlassCard = React.memo(
+  ({
+    children,
+    className = '',
+    onClick,
+  }: {
+    children: React.ReactNode;
+    className?: string;
+    onClick?: () => void;
+  }) => (
+    <div
+      onClick={onClick}
+      className={`bg-white/[0.035] border border-white/[0.09] shadow-[0_8px_32px_0_rgba(0,0,0,0.45)] rounded-3xl p-6 ${
+        onClick ? 'cursor-pointer hover:bg-white/[0.05] hover:border-white/[0.14]' : ''
+      } ${className}`}
+    >
+      {children}
     </div>
-  </div>
-));
+  )
+);
+GlassCard.displayName = 'GlassCard';
+
+const NewsTicker = React.memo(
+  ({
+    news,
+    isEvening,
+    isDeepSleep,
+  }: {
+    news: string[];
+    isEvening: boolean;
+    isDeepSleep: boolean;
+  }) => (
+    <div
+      className={`bg-white/[0.035] border border-white/[0.09] shadow-[0_8px_32px_0_rgba(0,0,0,0.45)] rounded-3xl p-3.5 shrink-0 overflow-hidden flex items-center gap-4 transition-opacity duration-1000 ${
+        isEvening ? 'opacity-80' : 'opacity-100'
+      }`}
+    >
+      <div className="text-xs font-semibold uppercase tracking-widest text-white/55 shrink-0 border-r border-white/15 pr-4">
+        BBC News
+      </div>
+      <div className="overflow-hidden flex-1 relative">
+        {news && news.length > 0 ? (
+          <div className={`animate-ticker items-center ${isDeepSleep ? 'animate-ticker-paused' : ''}`}>
+            {[...news, ...news, ...news].map((headline: string, i: number) => (
+              <span
+                key={i}
+                className="text-sm font-medium text-white/80 whitespace-nowrap mr-12 shrink-0"
+              >
+                {headline}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <span className="text-sm text-white/50">Syncing headlines...</span>
+        )}
+      </div>
+    </div>
+  )
+);
 NewsTicker.displayName = 'NewsTicker';
 
-const UpcomingEventModal = ({ event, onClose }: { event: any, onClose: () => void }) => {
+const UpcomingEventModal = ({
+  event,
+  onClose,
+}: {
+  event: CalendarEvent;
+  onClose: () => void;
+}) => {
   const [timeLeft, setTimeLeft] = useState('');
-  
+
   useEffect(() => {
     const updateTimer = () => {
       const diff = new Date(event.start).getTime() - Date.now();
@@ -41,67 +173,164 @@ const UpcomingEventModal = ({ event, onClose }: { event: any, onClose: () => voi
         setTimeLeft(`${m}m ${s < 10 ? '0' : ''}${s}s`);
       }
     };
-    updateTimer();
+    const initTimeout = setTimeout(updateTimer, 0);
     const timer = setInterval(updateTimer, 1000);
-    return () => clearInterval(timer);
+    return () => {
+      clearTimeout(initTimeout);
+      clearInterval(timer);
+    };
   }, [event]);
 
   return (
     <div className="absolute inset-0 z-50 bg-black/95 flex items-center justify-center p-10 animate-in fade-in zoom-in duration-300">
       <div className="w-full h-full bg-black border border-white/15 rounded-3xl flex flex-col items-center justify-center relative p-8 shadow-[0_0_50px_rgba(255,255,255,0.03)] text-center">
-        <button onClick={onClose} className="absolute top-8 right-8 p-3 bg-white/10 rounded-full text-white hover:bg-white/20 transition">
+        <button
+          onClick={onClose}
+          className="absolute top-8 right-8 p-3 bg-white/10 rounded-full text-white hover:bg-white/20 transition"
+        >
           <X className="w-6 h-6" />
         </button>
         <div className="w-24 h-24 rounded-full bg-sky-500/20 flex items-center justify-center mb-8 animate-pulse">
           <Calendar className="w-12 h-12 text-sky-400" />
         </div>
-        <h2 className="text-2xl font-medium text-white/40 uppercase tracking-widest mb-4">Starting Soon</h2>
-        <h1 className="text-6xl font-semibold text-white mb-8 max-w-4xl truncate">{event.summary}</h1>
-        <div className="text-[120px] leading-none font-light text-sky-400 font-mono tracking-tighter">{timeLeft}</div>
+        <h2 className="text-2xl font-medium text-white/50 uppercase tracking-widest mb-4">
+          Starting Soon
+        </h2>
+        <h1 className="text-6xl font-semibold text-white mb-4 max-w-4xl truncate">
+          {event.summary}
+        </h1>
+        {event.location && (
+          <div className="flex items-center gap-2 text-xl text-white/60 mb-8">
+            <MapPin className="w-5 h-5 text-sky-400" />
+            <span>{event.location}</span>
+          </div>
+        )}
+        <div className="text-[120px] leading-none font-light text-sky-400 font-mono tabular-nums tracking-tighter">
+          {timeLeft}
+        </div>
       </div>
     </div>
   );
 };
 
+function getWeatherIcon(code: number = 0, isDay: number = 1): { Icon: LucideIcon; color: string } {
+  if (code >= 95) return { Icon: CloudLightning, color: 'text-amber-400' };
+  if (code >= 71 && code <= 86) return { Icon: CloudSnow, color: 'text-sky-200' };
+  if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) {
+    return { Icon: CloudRain, color: 'text-sky-400' };
+  }
+  if (code >= 1 && code <= 48) return { Icon: Cloud, color: 'text-neutral-300' };
+  if (isDay === 0) return { Icon: Moon, color: 'text-indigo-300' };
+  return { Icon: Sun, color: 'text-amber-300' };
+}
+
+function getScoreDotColor(score: number | string): string {
+  const num = typeof score === 'number' ? score : Number(score);
+  if (isNaN(num)) return 'bg-white/20';
+  if (num >= 85) return 'bg-emerald-400';
+  if (num >= 70) return 'bg-sky-400';
+  return 'bg-amber-400';
+}
+
 export default function AmbientDashboard() {
   const [now, setNow] = useState<Date | null>(null);
-  const [activeModal, setActiveModal] = useState<'calendar' | 'reminders' | 'oura' | 'upcoming' | null>(null);
+  const [manualModal, setManualModal] = useState<'calendar' | 'reminders' | 'oura' | null>(null);
   const [dismissedEventKey, setDismissedEventKey] = useState<string | null>(null);
-  
-  const [data, setData] = useState<any>({
-    weather: { temp: '--', precipitation: 0, aqi: '--' },
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  const [syncError, setSyncError] = useState(false);
+
+  const [data, setData] = useState<DashboardState>({
+    weather: { temp: '--', precipitation: 0, aqi: '--', weatherCode: 0, isDay: 1 },
     oura: { readiness: '--', sleep: '--', steps: '--', stress: '--', history: [] },
     events: [],
     news: [],
     reminders: [],
-    emails: { gmail: { unread: 0, total: 0 }, uni: { unread: 0, total: 0 } }
+    emails: { gmail: { unread: 0, total: 0 }, uni: { unread: 0, total: 0 } },
   });
 
   useEffect(() => {
-    setNow(new Date());
+    const initTimer = setTimeout(() => setNow(new Date()), 0);
     const timer = setInterval(() => setNow(new Date()), 10000);
-    return () => clearInterval(timer);
+    return () => {
+      clearTimeout(initTimer);
+      clearInterval(timer);
+    };
   }, []);
 
   useEffect(() => {
     const fetchDashboard = async () => {
       try {
-        const [dashRes, remRes, emailRes] = await Promise.all([
+        const [dashRes, remRes, emailRes] = await Promise.allSettled([
           fetch('/api/dashboard', { cache: 'no-store' }),
           fetch('/api/reminders', { cache: 'no-store' }),
-          fetch('/api/emails', { cache: 'no-store' })
+          fetch('/api/emails', { cache: 'no-store' }),
         ]);
-        
-        let newData = {};
-        if (dashRes.ok) newData = { ...newData, ...(await dashRes.json()) };
-        if (remRes.ok) {
-          const remJson = await remRes.json();
-          newData = { ...newData, reminders: Array.isArray(remJson) ? remJson : (remJson.items || []) };
+
+        let anySuccess = false;
+        const updates: Partial<DashboardState> = {};
+
+        if (dashRes.status === 'fulfilled' && dashRes.value.ok) {
+          const dashJson = (await dashRes.value.json()) as Partial<DashboardState>;
+          if (dashJson.weather && dashJson.weather.temp !== '--') {
+            updates.weather = dashJson.weather;
+          }
+          if (dashJson.oura) {
+            updates.oura = dashJson.oura;
+          }
+          if (Array.isArray(dashJson.events)) {
+            updates.events = dashJson.events;
+          }
+          if (Array.isArray(dashJson.news) && dashJson.news.length > 0) {
+            updates.news = dashJson.news;
+          }
+          if (dashJson.updatedAt) {
+            updates.updatedAt = dashJson.updatedAt;
+          }
+          anySuccess = true;
         }
-        if (emailRes.ok) newData = { ...newData, emails: await emailRes.json() };
-        setData((p: any) => ({ ...p, ...newData }));
-      } catch (e) { console.error(e); }
+
+        if (remRes.status === 'fulfilled' && remRes.value.ok) {
+          const remJson = await remRes.value.json();
+          const parsedReminders = Array.isArray(remJson)
+            ? remJson
+            : Array.isArray(remJson?.items)
+              ? remJson.items
+              : null;
+          if (parsedReminders) {
+            updates.reminders = parsedReminders;
+            anySuccess = true;
+          }
+        }
+
+        if (emailRes.status === 'fulfilled' && emailRes.value.ok) {
+          const emailJson = (await emailRes.value.json()) as EmailsData;
+          if (emailJson?.gmail && emailJson?.uni) {
+            updates.emails = emailJson;
+            anySuccess = true;
+          }
+        }
+
+        if (anySuccess) {
+          setData((prev) => ({
+            ...prev,
+            ...updates,
+            oura:
+              updates.oura &&
+              (updates.oura.readiness !== '--' || prev.oura.readiness === '--')
+                ? updates.oura
+                : prev.oura,
+          }));
+          setLastSyncedAt(new Date());
+          setSyncError(false);
+        } else {
+          setSyncError(true);
+        }
+      } catch (e) {
+        console.error('Dashboard poll failed:', e);
+        setSyncError(true);
+      }
     };
+
     fetchDashboard();
     const interval = setInterval(fetchDashboard, 300000);
     return () => clearInterval(interval);
@@ -109,34 +338,49 @@ export default function AmbientDashboard() {
 
   const nextEvent = data.events && data.events.length > 0 ? data.events[0] : null;
 
-  useEffect(() => {
-    if (nextEvent) {
-      const timeTo = new Date(nextEvent.start).getTime() - Date.now();
-      const eventKey = nextEvent.summary + nextEvent.start;
-      
-      if (timeTo > 0 && timeTo <= 15 * 60 * 1000 && dismissedEventKey !== eventKey && activeModal !== 'upcoming') {
-        setActiveModal('upcoming');
-      } else if (timeTo <= 0 && activeModal === 'upcoming') {
-        setActiveModal(null);
+  // Find the next upcoming event that hasn't started yet for the 15-minute alert modal
+  const upcomingAlertEvent = useMemo(() => {
+    if (!now || !data.events) return null;
+    const nowMs = now.getTime();
+    for (const ev of data.events) {
+      const timeTo = new Date(ev.start).getTime() - nowMs;
+      if (timeTo > 0 && timeTo <= 15 * 60 * 1000) {
+        return ev;
       }
     }
-  }, [now, nextEvent, dismissedEventKey, activeModal]);
+    return null;
+  }, [now, data.events]);
+
+  const upcomingEventKey = upcomingAlertEvent
+    ? `${upcomingAlertEvent.summary}${upcomingAlertEvent.start}`
+    : null;
+
+  const isUpcomingModalOpen = Boolean(
+    upcomingAlertEvent && upcomingEventKey && dismissedEventKey !== upcomingEventKey
+  );
+
+  const activeModal: 'calendar' | 'reminders' | 'oura' | 'upcoming' | null =
+    manualModal ?? (isUpcomingModalOpen ? 'upcoming' : null);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft') setActiveModal(prev => prev === 'oura' ? null : 'oura');
-      if (e.key === 'ArrowRight' || e.key === 'ArrowUp') setActiveModal(prev => prev === 'calendar' ? null : 'calendar');
-      if (e.key === 'ArrowDown') setActiveModal(prev => prev === 'reminders' ? null : 'reminders');
+      if (e.key === 'ArrowLeft') setManualModal((prev) => (prev === 'oura' ? null : 'oura'));
+      if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+        setManualModal((prev) => (prev === 'calendar' ? null : 'calendar'));
+      }
+      if (e.key === 'ArrowDown') {
+        setManualModal((prev) => (prev === 'reminders' ? null : 'reminders'));
+      }
       if (e.key === 'Enter' || e.key === 'Escape' || e.key === 'Backspace') {
-        if (activeModal === 'upcoming' && nextEvent) {
-          setDismissedEventKey(nextEvent.summary + nextEvent.start);
+        if (isUpcomingModalOpen && upcomingEventKey) {
+          setDismissedEventKey(upcomingEventKey);
         }
-        setActiveModal(null);
+        setManualModal(null);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeModal, nextEvent]);
+  }, [isUpcomingModalOpen, upcomingEventKey]);
 
   const getCountdown = (targetIso: string) => {
     if (!now) return '--d';
@@ -145,50 +389,122 @@ export default function AmbientDashboard() {
     return `${Math.floor(diff / 86400000)}d`;
   };
 
-  const getRelativeTime = (dateStr: string) => {
+  const getRelativeTime = (startStr: string, endStr?: string) => {
     if (!now) return '';
-    const diff = new Date(dateStr).getTime() - now.getTime();
+    const nowMs = now.getTime();
+    const startMs = new Date(startStr).getTime();
+    const endMs = endStr ? new Date(endStr).getTime() : startMs;
+
+    if (startMs <= nowMs && endMs > nowMs) {
+      const remMins = Math.max(1, Math.ceil((endMs - nowMs) / 60000));
+      if (remMins < 60) return `${remMins}m remaining`;
+      return `${Math.floor(remMins / 60)}h ${remMins % 60}m left`;
+    }
+
+    const diff = startMs - nowMs;
     if (diff <= 0) return 'Now';
     const mins = Math.floor(diff / 60000);
-    if (mins < 60) return `${mins}m`;
+    if (mins < 60) return `in ${mins}m`;
     const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h ${mins % 60}m`;
-    return `${Math.floor(hrs / 24)}d`;
+    if (hrs < 24) return `in ${hrs}h ${mins % 60}m`;
+    return `in ${Math.floor(hrs / 24)}d`;
   };
 
-  const getEventBadge = (summary: string = '') => {
+  const getEventBadge = (
+    summary: string = ''
+  ): { label: string; icon: LucideIcon; color: string; dot: string } => {
     const s = summary.toLowerCase();
-    if (s.includes('walk') || s.includes('->') || s.includes('transit')) return { label: 'Transit', icon: MapPin, color: 'text-neutral-400', dot: 'bg-neutral-400' };
-    if (s.includes('lecture')) return { label: 'Lecture', icon: GraduationCap, color: 'text-purple-400', dot: 'bg-purple-400' };
-    if (s.includes('seminar')) return { label: 'Seminar', icon: Users, color: 'text-indigo-400', dot: 'bg-indigo-400' };
-    if (s.includes('tutorial')) return { label: 'Tutorial', icon: BookOpen, color: 'text-sky-400', dot: 'bg-sky-400' };
-    return { label: 'Event', icon: Calendar, color: 'text-emerald-400', dot: 'bg-emerald-400' };
+    if (s.includes('walk') || s.includes('->') || s.includes('transit')) {
+      return { label: 'Transit', icon: MapPin, color: 'text-neutral-300', dot: 'bg-neutral-400' };
+    }
+    if (s.includes('lecture')) {
+      return {
+        label: 'Lecture',
+        icon: GraduationCap,
+        color: 'text-purple-300',
+        dot: 'bg-purple-400',
+      };
+    }
+    if (s.includes('seminar')) {
+      return { label: 'Seminar', icon: Users, color: 'text-indigo-300', dot: 'bg-indigo-400' };
+    }
+    if (s.includes('tutorial')) {
+      return { label: 'Tutorial', icon: BookOpen, color: 'text-sky-300', dot: 'bg-sky-400' };
+    }
+    return { label: 'Event', icon: Calendar, color: 'text-emerald-300', dot: 'bg-emerald-400' };
   };
 
-  const getReminderListStyle = (rawList: any = '') => {
-    const l = (typeof rawList === 'string' ? rawList : rawList?.title || rawList?.name || 'General').trim().toLowerCase();
-    if (l.includes('household')) return { name: 'Household', color: 'text-amber-400', border: 'border-amber-400', dot: 'bg-amber-400' };
-    if (l.includes('health')) return { name: 'Health', color: 'text-red-400', border: 'border-red-400', dot: 'bg-red-400' };
-    if (l.includes('finance')) return { name: 'Finances', color: 'text-emerald-400', border: 'border-emerald-400', dot: 'bg-emerald-400' };
-    if (l.includes('work')) return { name: 'Work', color: 'text-neutral-400', border: 'border-neutral-400', dot: 'bg-neutral-400' };
-    if (l.includes('shopping')) return { name: 'Shopping', color: 'text-sky-400', border: 'border-sky-400', dot: 'bg-sky-400' };
-    if (l.includes('uni')) return { name: 'Uni', color: 'text-purple-400', border: 'border-purple-400', dot: 'bg-purple-400' };
-    if (l.includes('duglj')) return { name: 'DUGLJ', color: 'text-blue-500', border: 'border-blue-500', dot: 'bg-blue-500' };
-    if (l.includes('exam')) return { name: 'Exams', color: 'text-red-500', border: 'border-red-500', dot: 'bg-red-500' };
-    return { name: l || 'Task', color: 'text-neutral-400', border: 'border-neutral-500', dot: 'bg-neutral-500' };
+  const getReminderListStyle = (rawList: string | ReminderListObject = '') => {
+    const l = (
+      typeof rawList === 'string' ? rawList : rawList?.title || rawList?.name || 'General'
+    )
+      .trim()
+      .toLowerCase();
+    if (l.includes('household')) {
+      return { name: 'Household', color: 'text-amber-400', border: 'border-amber-400', dot: 'bg-amber-400' };
+    }
+    if (l.includes('health')) {
+      return { name: 'Health', color: 'text-red-400', border: 'border-red-400', dot: 'bg-red-400' };
+    }
+    if (l.includes('finance')) {
+      return { name: 'Finances', color: 'text-emerald-400', border: 'border-emerald-400', dot: 'bg-emerald-400' };
+    }
+    if (l.includes('work')) {
+      return { name: 'Work', color: 'text-neutral-300', border: 'border-neutral-400', dot: 'bg-neutral-400' };
+    }
+    if (l.includes('shopping')) {
+      return { name: 'Shopping', color: 'text-sky-400', border: 'border-sky-400', dot: 'bg-sky-400' };
+    }
+    if (l.includes('uni')) {
+      return { name: 'Uni', color: 'text-purple-400', border: 'border-purple-400', dot: 'bg-purple-400' };
+    }
+    if (l.includes('duglj')) {
+      return { name: 'DUGLJ', color: 'text-blue-400', border: 'border-blue-500', dot: 'bg-blue-500' };
+    }
+    if (l.includes('exam')) {
+      return { name: 'Exams', color: 'text-red-500', border: 'border-red-500', dot: 'bg-red-500' };
+    }
+    return {
+      name: l || 'Task',
+      color: 'text-neutral-300',
+      border: 'border-neutral-500',
+      dot: 'bg-neutral-500',
+    };
   };
 
-  const timeString = now ? now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '--:--';
-  const dateString = now ? now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }) : 'Loading...';
-  const stepsFormatted = typeof data.oura?.steps === 'number' ? data.oura.steps.toLocaleString('en-GB') : data.oura?.steps ?? '--';
+  const timeString = now
+    ? now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: TZ })
+    : '--:--';
+  const dateString = now
+    ? now.toLocaleDateString('en-GB', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        timeZone: TZ,
+      })
+    : 'Loading...';
+  const stepsFormatted =
+    typeof data.oura?.steps === 'number'
+      ? data.oura.steps.toLocaleString('en-GB')
+      : data.oura?.steps ?? '--';
 
-  const groupedEvents: Record<string, { dateLabel: string; isToday: boolean; items: any[] }> = {};
+  const todayIso = now ? now.toLocaleDateString('en-CA', { timeZone: TZ }) : '';
+
+  const groupedEvents: Record<string, { dateLabel: string; isToday: boolean; items: CalendarEvent[] }> =
+    {};
   if (now && data.events) {
-    const todayIso = now.toISOString().split('T')[0];
-    data.events.slice(0, 8).forEach((ev: any) => {
+    data.events.slice(0, 10).forEach((ev) => {
       const evDate = new Date(ev.start);
-      const iso = evDate.toISOString().split('T')[0];
-      const formattedDate = iso === todayIso ? 'Today' : evDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric' });
+      const iso = evDate.toLocaleDateString('en-CA', { timeZone: TZ });
+      const formattedDate =
+        iso === todayIso
+          ? 'Today'
+          : evDate.toLocaleDateString('en-GB', {
+              weekday: 'long',
+              day: 'numeric',
+              month: 'short',
+              timeZone: TZ,
+            });
       if (!groupedEvents[iso]) {
         groupedEvents[iso] = { dateLabel: formattedDate, isToday: iso === todayIso, items: [] };
       }
@@ -197,79 +513,163 @@ export default function AmbientDashboard() {
   }
 
   const currentHour = now ? now.getHours() : 12;
+  const currentMinute = now ? now.getMinutes() : 0;
   const isMorning = currentHour >= 6 && currentHour < 9;
   const isDeepWork = currentHour >= 9 && currentHour < 17;
   const isEvening = currentHour >= 20 || currentHour < 6;
+  const isDeepSleep = (currentHour === 23 && currentMinute >= 30) || currentHour < 6;
 
-  const leftColSpan = isDeepWork ? 'col-span-3' : 'col-span-4'; 
+  // Subtle orbital pixel shift (±3px X, ±2px Y) to prevent 24/7 static burn-in
+  const pixelShift = useMemo(() => {
+    if (!now) return { x: 0, y: 0 };
+    const minuteTick = Math.floor(now.getTime() / 60000);
+    const angle = (minuteTick % 12) * ((2 * Math.PI) / 12);
+    return {
+      x: Math.round(Math.sin(angle) * 3),
+      y: Math.round(Math.cos(angle * 2) * 2),
+    };
+  }, [now]);
+
+  const leftColSpan = isDeepWork ? 'col-span-3' : 'col-span-4';
   const rightColSpan = isDeepWork ? 'col-span-9' : 'col-span-8';
 
-  const todayDateStr = now ? now.toLocaleDateString('en-CA') : '';
-  const todayReminders = (data.reminders || [])
-    .filter((item: any) => item.dueDate && new Date(item.dueDate).toLocaleDateString('en-CA') === todayDateStr)
-    .sort((a: any, b: any) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+  const todayReminders = useMemo(() => {
+    if (!todayIso) return [];
+    return (data.reminders || [])
+      .filter((item) => {
+        if (!item.dueDate) return false;
+        const d = new Date(item.dueDate);
+        return !isNaN(d.getTime()) && d.toLocaleDateString('en-CA', { timeZone: TZ }) === todayIso;
+      })
+      .sort((a, b) => new Date(a.dueDate || 0).getTime() - new Date(b.dueDate || 0).getTime());
+  }, [data.reminders, todayIso]);
 
-  const GlassCard = ({ children, className = '' }: { children: React.ReactNode, className?: string }) => (
-    <div className={`bg-white/[0.03] border border-white/[0.08] shadow-[0_8px_32px_0_rgba(0,0,0,0.4)] rounded-3xl p-6 ${className}`}>
-      {children}
-    </div>
+  // Check if nextEvent is currently active and calculate progress
+  const nextEventStatus = useMemo(() => {
+    if (!now || !nextEvent) {
+      return { isActive: false, progressPct: 0, isSoon: false };
+    }
+    const nowMs = now.getTime();
+    const startMs = new Date(nextEvent.start).getTime();
+    const endMs = nextEvent.end ? new Date(nextEvent.end).getTime() : startMs + 3600000;
+    if (startMs <= nowMs && endMs > nowMs) {
+      const total = Math.max(1, endMs - startMs);
+      const pct = Math.min(100, Math.max(0, Math.round(((nowMs - startMs) / total) * 100)));
+      return { isActive: true, progressPct: pct, isSoon: false };
+    }
+    const minsUntil = (startMs - nowMs) / 60000;
+    return { isActive: false, progressPct: 0, isSoon: minsUntil > 0 && minsUntil <= 90 };
+  }, [now, nextEvent]);
+
+  // Sync freshness status
+  const syncAgeMins =
+    now && lastSyncedAt ? Math.floor((now.getTime() - lastSyncedAt.getTime()) / 60000) : null;
+  const isStale = syncError || (syncAgeMins !== null && syncAgeMins >= 15);
+
+  const { Icon: WeatherIcon, color: weatherIconColor } = getWeatherIcon(
+    data.weather?.weatherCode,
+    data.weather?.isDay
   );
 
   const renderModal = () => {
     if (!activeModal) return null;
-    if (activeModal === 'upcoming' && nextEvent) {
+    if (activeModal === 'upcoming' && upcomingAlertEvent) {
       return (
-        <UpcomingEventModal 
-          event={nextEvent} 
+        <UpcomingEventModal
+          event={upcomingAlertEvent}
           onClose={() => {
-            setDismissedEventKey(nextEvent.summary + nextEvent.start);
-            setActiveModal(null);
-          }} 
+            if (upcomingEventKey) setDismissedEventKey(upcomingEventKey);
+            setManualModal(null);
+          }}
         />
       );
     }
-    
+
     return (
       <div className="absolute inset-0 z-50 bg-black/95 flex items-center justify-center p-10 animate-in fade-in duration-200">
         <div className="w-full h-full bg-black border border-white/15 rounded-3xl flex flex-col relative p-8 shadow-[0_0_50px_rgba(255,255,255,0.03)]">
-          <button onClick={() => setActiveModal(null)} className="absolute top-8 right-8 p-3 bg-white/10 rounded-full text-white hover:bg-white/20 transition">
+          <button
+            onClick={() => setManualModal(null)}
+            className="absolute top-8 right-8 p-3 bg-white/10 rounded-full text-white hover:bg-white/20 transition"
+          >
             <X className="w-6 h-6" />
           </button>
-          
+
           {activeModal === 'reminders' && (
             <div className="flex flex-col h-full">
-              <h2 className="text-4xl font-semibold text-white mb-8">All Tasks</h2>
-              <div className="overflow-y-auto pr-4 space-y-2">
-                {data.reminders.map((r: any, i: number) => {
-                   const listStyle = getReminderListStyle(r.list || r.listName);
-                   return (
-                    <div key={i} className="py-5 px-6 bg-white/[0.04] rounded-2xl flex items-center gap-5">
-                      <div className={`w-4 h-4 rounded-full border-2 ${listStyle.border} bg-transparent shrink-0`}></div>
-                      <div className="font-medium text-xl flex-1 text-white/95">{r.title || r.text || 'Untitled'}</div>
-                      <span className="text-base font-medium text-white/50 capitalize">{listStyle.name}</span>
+              <h2 className="text-4xl font-semibold text-white mb-8">
+                All Tasks ({data.reminders.length})
+              </h2>
+              <div className="overflow-y-auto pr-4 space-y-2.5">
+                {data.reminders.map((r, i) => {
+                  const listStyle = getReminderListStyle(r.list || r.listName);
+                  return (
+                    <div
+                      key={i}
+                      className="py-5 px-6 bg-white/[0.04] border border-white/[0.06] rounded-2xl flex items-center gap-5"
+                    >
+                      <div
+                        className={`w-4 h-4 rounded-full border-2 ${listStyle.border} bg-transparent shrink-0`}
+                      />
+                      <div className="font-medium text-xl flex-1 text-white/95">
+                        {r.title || r.text || 'Untitled'}
+                      </div>
+                      <span className={`text-base font-medium capitalize ${listStyle.color}`}>
+                        {listStyle.name}
+                      </span>
                     </div>
-                   )
+                  );
                 })}
               </div>
             </div>
           )}
-          
+
           {activeModal === 'calendar' && (
             <div className="flex flex-col h-full">
-              <h2 className="text-4xl font-semibold text-white mb-8">Calendar</h2>
-              <div className="overflow-y-auto pr-4 space-y-2">
-                {data.events.map((e: any, i: number) => {
-                   const badge = getEventBadge(e.summary);
-                   return (
-                    <div key={i} className="py-5 px-6 bg-white/[0.04] rounded-2xl flex items-center gap-6">
-                      <div className="flex flex-col min-w-[100px] shrink-0">
-                        <span className="text-white/95 text-lg font-medium">{new Date(e.start).toLocaleTimeString('en-GB', {hour: '2-digit', minute: '2-digit'})}</span>
-                        <span className="text-white/50 text-sm">{new Date(e.start).toLocaleDateString('en-GB', {weekday: 'short', day: 'numeric'})}</span>
+              <h2 className="text-4xl font-semibold text-white mb-8">Calendar Schedule</h2>
+              <div className="overflow-y-auto pr-4 space-y-2.5">
+                {data.events.map((e, i) => {
+                  const badge = getEventBadge(e.summary);
+                  const BadgeIcon = badge.icon;
+                  return (
+                    <div
+                      key={i}
+                      className="py-5 px-6 bg-white/[0.04] border border-white/[0.06] rounded-2xl flex items-center gap-6"
+                    >
+                      <div className="flex flex-col min-w-[110px] shrink-0 tabular-nums">
+                        <span className="text-white/95 text-lg font-medium">
+                          {new Date(e.start).toLocaleTimeString('en-GB', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            timeZone: TZ,
+                          })}
+                        </span>
+                        <span className="text-white/55 text-sm">
+                          {new Date(e.start).toLocaleDateString('en-GB', {
+                            weekday: 'short',
+                            day: 'numeric',
+                            month: 'short',
+                            timeZone: TZ,
+                          })}
+                        </span>
                       </div>
-                      <div className={`w-3 h-3 rounded-full shrink-0 ${badge.dot}`}></div>
-                      <span className="font-medium text-xl text-white/95 truncate">{e.summary}</span>
+                      <div className={`w-3 h-3 rounded-full shrink-0 ${badge.dot}`} />
+                      <div className="flex flex-col flex-1 min-w-0">
+                        <span className="font-medium text-xl text-white/95 truncate">
+                          {e.summary}
+                        </span>
+                        {e.location && (
+                          <span className="text-sm text-white/50 truncate">{e.location}</span>
+                        )}
+                      </div>
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium bg-white/[0.05] ${badge.color}`}
+                      >
+                        <BadgeIcon className="w-4 h-4" />
+                        {badge.label}
+                      </span>
                     </div>
-                   )
+                  );
                 })}
               </div>
             </div>
@@ -279,11 +679,34 @@ export default function AmbientDashboard() {
             <div className="flex flex-col h-full items-center justify-center">
               <Activity className="w-20 h-20 text-white/80 mb-8" />
               <h2 className="text-5xl font-semibold text-white mb-16">Health Metrics</h2>
-              <div className="grid grid-cols-4 gap-8 text-center w-full max-w-5xl">
-                 <div className="bg-white/[0.04] p-8 rounded-3xl"><div className="text-white/50 text-base mb-3 font-medium uppercase tracking-widest">Readiness</div><div className="text-6xl font-light text-white">{data.oura.readiness}</div></div>
-                 <div className="bg-white/[0.04] p-8 rounded-3xl"><div className="text-white/50 text-base mb-3 font-medium uppercase tracking-widest">Sleep</div><div className="text-6xl font-light text-white">{data.oura.sleep}</div></div>
-                 <div className="bg-white/[0.04] p-8 rounded-3xl"><div className="text-white/50 text-base mb-3 font-medium uppercase tracking-widest">Steps</div><div className="text-6xl font-light text-white">{stepsFormatted}</div></div>
-                 <div className="bg-white/[0.04] p-8 rounded-3xl"><div className="text-white/50 text-base mb-3 font-medium uppercase tracking-widest">Stress</div><div className="text-6xl font-light text-white">{data.oura.stress}<span className="text-3xl text-white/40 ml-1">m</span></div></div>
+              <div className="grid grid-cols-4 gap-8 text-center w-full max-w-5xl tabular-nums">
+                <div className="bg-white/[0.04] border border-white/[0.08] p-8 rounded-3xl">
+                  <div className="text-white/55 text-base mb-3 font-medium uppercase tracking-widest">
+                    Readiness
+                  </div>
+                  <div className="text-6xl font-light text-white">{data.oura.readiness}</div>
+                </div>
+                <div className="bg-white/[0.04] border border-white/[0.08] p-8 rounded-3xl">
+                  <div className="text-white/55 text-base mb-3 font-medium uppercase tracking-widest">
+                    Sleep
+                  </div>
+                  <div className="text-6xl font-light text-white">{data.oura.sleep}</div>
+                </div>
+                <div className="bg-white/[0.04] border border-white/[0.08] p-8 rounded-3xl">
+                  <div className="text-white/55 text-base mb-3 font-medium uppercase tracking-widest">
+                    Steps
+                  </div>
+                  <div className="text-6xl font-light text-white">{stepsFormatted}</div>
+                </div>
+                <div className="bg-white/[0.04] border border-white/[0.08] p-8 rounded-3xl">
+                  <div className="text-white/55 text-base mb-3 font-medium uppercase tracking-widest">
+                    Stress
+                  </div>
+                  <div className="text-6xl font-light text-white">
+                    {data.oura.stress}
+                    <span className="text-3xl text-white/45 ml-1">m</span>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -292,107 +715,222 @@ export default function AmbientDashboard() {
     );
   };
 
+  const ambientOpacityClass = isDeepSleep
+    ? 'opacity-45'
+    : isEvening
+      ? 'opacity-80'
+      : 'opacity-100';
+
   return (
-    <main className={`h-screen w-screen overflow-hidden bg-black text-white p-8 flex flex-col justify-between gap-6 select-none font-sans transition-opacity duration-1000 ${isEvening ? 'opacity-80' : 'opacity-100'}`}>
+    <main
+      style={{ transform: `translate3d(${pixelShift.x}px, ${pixelShift.y}px, 0)` }}
+      className={`h-screen w-screen overflow-hidden bg-black text-white p-8 flex flex-col justify-between gap-6 select-none font-sans transition-[opacity,transform] duration-[2500ms] ease-in-out ${ambientOpacityClass}`}
+    >
       {renderModal()}
-      
+
       {/* TOP HEADER */}
       <header className="grid grid-cols-12 gap-6 items-stretch shrink-0 h-28">
         <div className="col-span-3 flex flex-col justify-center">
-          <div className="text-7xl font-medium tracking-tighter text-white/95">{timeString}</div>
-          <div className="text-lg font-medium text-white/40 mt-1">{dateString}</div>
+          <div className="text-7xl font-medium tracking-tighter tabular-nums text-white/95 leading-none">
+            {timeString}
+          </div>
+          <div className="flex items-center gap-2.5 mt-2">
+            <span className="text-lg font-medium text-white/55 truncate">{dateString}</span>
+            {lastSyncedAt && (
+              <span
+                title={`Last synced ${syncAgeMins ?? 0}m ago`}
+                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium border shrink-0 ${
+                  isStale
+                    ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                    : 'bg-emerald-500/10 border-emerald-500/25 text-emerald-300/90'
+                }`}
+              >
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    isStale ? 'bg-amber-400' : 'bg-emerald-400'
+                  }`}
+                />
+                {isStale ? `Stale ${syncAgeMins ?? ''}m` : 'Live'}
+              </span>
+            )}
+          </div>
         </div>
 
-        <GlassCard className="col-span-3 flex flex-col justify-center gap-1.5 !p-5 transition-all duration-700">
-          <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${nextEvent ? 'bg-sky-400 animate-pulse' : 'bg-white/20'}`}></div>
-            <span className="text-[11px] font-medium uppercase tracking-widest text-white/50">
-              {isMorning ? 'Morning' : isDeepWork ? 'Focus' : 'Next Up'}
-            </span>
+        <GlassCard
+          onClick={() => setManualModal('calendar')}
+          className="col-span-3 flex flex-col justify-center gap-1.5 !p-5 relative overflow-hidden transition-all duration-700"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <div
+                className={`w-2 h-2 rounded-full ${
+                  nextEventStatus.isActive
+                    ? 'bg-emerald-400 animate-pulse'
+                    : nextEvent
+                      ? 'bg-sky-400 animate-pulse'
+                      : 'bg-white/25'
+                }`}
+              />
+              <span className="text-xs font-semibold uppercase tracking-widest text-white/60">
+                {nextEventStatus.isActive
+                  ? 'Now Active'
+                  : isMorning
+                    ? 'Morning'
+                    : isDeepWork
+                      ? 'Focus'
+                      : 'Next Up'}
+              </span>
+            </div>
+            {nextEventStatus.isSoon && (data.weather?.precipitation ?? 0) > 0 && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-sky-500/15 text-sky-300 border border-sky-400/25">
+                <Umbrella className="w-3 h-3" />
+                {data.weather.precipitation}mm
+              </span>
+            )}
           </div>
           <div className="text-xl font-medium text-white/95 truncate">
             {nextEvent ? nextEvent.summary : 'Clear Schedule'}
           </div>
-          <div className="text-sm font-medium text-white/40">
-            {nextEvent ? getRelativeTime(nextEvent.start) : 'Relax'}
+          <div className="flex items-center justify-between gap-2 text-sm font-medium text-white/55 tabular-nums">
+            <span>
+              {nextEvent ? getRelativeTime(nextEvent.start, nextEvent.end) : 'Relax'}
+            </span>
+            {nextEvent?.location && (
+              <span className="text-xs text-white/45 truncate max-w-[140px]">
+                {nextEvent.location}
+              </span>
+            )}
           </div>
+          {nextEventStatus.isActive && (
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10">
+              <div
+                className="h-full bg-emerald-400/80 transition-all duration-1000"
+                style={{ width: `${nextEventStatus.progressPct}%` }}
+              />
+            </div>
+          )}
         </GlassCard>
 
         <div className="col-span-6 grid grid-cols-4 gap-5 h-full">
           <GlassCard className="!p-4 flex flex-col justify-between items-center text-center">
-            <span className="text-[10px] font-medium uppercase tracking-widest text-white/40">Weather</span>
-            <div className="flex items-center gap-2">
-              <span className="text-3xl font-light text-white/90">{data.weather?.temp}°</span>
-              <Sun className="w-5 h-5 text-white/60" />
+            <span className="text-xs font-semibold uppercase tracking-widest text-white/55">
+              Weather
+            </span>
+            <div className="flex items-center gap-2 tabular-nums">
+              <span className="text-3xl font-light text-white/95">{data.weather?.temp}°</span>
+              <WeatherIcon className={`w-6 h-6 ${weatherIconColor}`} />
+            </div>
+            <div className="text-[11px] font-medium text-white/50 tabular-nums">
+              {(data.weather?.precipitation ?? 0) > 0
+                ? `${data.weather.precipitation}mm rain`
+                : `AQI ${data.weather?.aqi ?? '--'}`}
             </div>
           </GlassCard>
           <GlassCard className="!p-4 flex flex-col justify-between items-center text-center">
-            <span className="text-[10px] font-medium uppercase tracking-widest text-white/40">Birthday</span>
-            <span className="text-3xl font-light text-white/90">{getCountdown('2026-12-03T00:00:00')}</span>
+            <span className="text-xs font-semibold uppercase tracking-widest text-white/55">
+              Birthday
+            </span>
+            <span className="text-3xl font-light tabular-nums text-white/95">
+              {getCountdown('2026-12-03T00:00:00')}
+            </span>
+            <span className="text-[11px] font-medium text-white/45">3 Dec</span>
           </GlassCard>
           <GlassCard className="!p-4 flex flex-col justify-between items-center text-center">
-            <span className="text-[10px] font-medium uppercase tracking-widest text-white/40">Xmas</span>
-            <span className="text-3xl font-light text-white/90">{getCountdown('2026-12-09T17:00:00')}</span>
+            <span className="text-xs font-semibold uppercase tracking-widest text-white/55">
+              Xmas
+            </span>
+            <span className="text-3xl font-light tabular-nums text-white/95">
+              {getCountdown('2026-12-09T17:00:00')}
+            </span>
+            <span className="text-[11px] font-medium text-white/45">9 Dec</span>
           </GlassCard>
           <GlassCard className="!p-4 flex flex-col justify-between items-center text-center">
-            <span className="text-[10px] font-medium uppercase tracking-widest text-white/40">Uni End</span>
-            <span className="text-3xl font-light text-white/90">{getCountdown('2027-03-19T17:00:00')}</span>
+            <span className="text-xs font-semibold uppercase tracking-widest text-white/55">
+              Uni End
+            </span>
+            <span className="text-3xl font-light tabular-nums text-white/95">
+              {getCountdown('2027-03-19T17:00:00')}
+            </span>
+            <span className="text-[11px] font-medium text-white/45">19 Mar</span>
           </GlassCard>
         </div>
       </header>
 
       {/* MAIN CONTENT GRID */}
       <div className="grid grid-cols-12 gap-6 flex-1 min-h-0">
-        
         {/* LEFT COLUMN */}
         <div className={`${leftColSpan} flex flex-col gap-6 min-h-0 transition-all duration-700`}>
-          <GlassCard className="flex flex-col justify-between shrink-0 !pb-6 relative">
-            <div className="absolute top-6 right-6 flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-white/40 text-[10px] uppercase tracking-widest">
+          <GlassCard
+            onClick={() => setManualModal('oura')}
+            className="flex flex-col justify-between shrink-0 !pb-6 relative"
+          >
+            <div className="absolute top-6 right-6 flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-white/[0.06] border border-white/10 text-white/55 text-[11px] font-medium uppercase tracking-widest">
               <ChevronLeft className="w-3 h-3" /> Press
             </div>
             <div className="flex items-center gap-2 mb-5">
-              <Activity className="w-4 h-4 text-white/40" />
-              <span className="font-medium text-sm text-white/40 uppercase tracking-widest">Biometrics</span>
+              <Activity className="w-4 h-4 text-white/55" />
+              <span className="font-semibold text-sm text-white/55 uppercase tracking-widest">
+                Biometrics
+              </span>
             </div>
-            <div className="grid grid-cols-2 gap-y-6 gap-x-4">
+            <div className="grid grid-cols-2 gap-y-6 gap-x-4 tabular-nums">
               <div>
-                <div className="text-sm font-medium text-white/40 mb-1">Readiness</div>
+                <div className="flex items-center gap-1.5 text-sm font-medium text-white/55 mb-1">
+                  <span>Readiness</span>
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${getScoreDotColor(data.oura?.readiness)}`}
+                  />
+                </div>
                 <div className="text-3xl font-light text-white">{data.oura?.readiness}</div>
               </div>
               <div>
-                <div className="text-sm font-medium text-white/40 mb-1">Sleep</div>
+                <div className="flex items-center gap-1.5 text-sm font-medium text-white/55 mb-1">
+                  <span>Sleep</span>
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${getScoreDotColor(data.oura?.sleep)}`}
+                  />
+                </div>
                 <div className="text-3xl font-light text-white">{data.oura?.sleep}</div>
               </div>
               <div>
-                <div className="text-sm font-medium text-white/40 mb-1">Steps</div>
+                <div className="text-sm font-medium text-white/55 mb-1">Steps</div>
                 <div className="text-3xl font-light text-white">{stepsFormatted}</div>
               </div>
               <div>
-                <div className="text-sm font-medium text-white/40 mb-1">Stress</div>
-                <div className="text-3xl font-light text-white">{data.oura?.stress}<span className="text-sm text-white/40 ml-0.5">m</span></div>
+                <div className="text-sm font-medium text-white/55 mb-1">Stress</div>
+                <div className="text-3xl font-light text-white">
+                  {data.oura?.stress}
+                  <span className="text-sm text-white/45 ml-0.5">m</span>
+                </div>
               </div>
             </div>
           </GlassCard>
 
           <GlassCard className="flex flex-col shrink-0">
             <div className="flex items-center gap-2 mb-4 shrink-0">
-              <Mail className="w-4 h-4 text-white/40" />
-              <span className="font-medium text-sm text-white/40 uppercase tracking-widest">Inboxes</span>
+              <Mail className="w-4 h-4 text-white/55" />
+              <span className="font-semibold text-sm text-white/55 uppercase tracking-widest">
+                Inboxes
+              </span>
             </div>
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4 tabular-nums">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-rose-500/20 flex items-center justify-center shrink-0">
                     <Mail className="w-4 h-4 text-rose-400" />
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-white/90 font-medium leading-tight">Personal</span>
-                    <span className="text-white/40 text-xs">Gmail</span>
+                    <span className="text-white/95 font-medium leading-tight">Personal</span>
+                    <span className="text-white/50 text-xs">Gmail</span>
                   </div>
                 </div>
                 <div className="flex flex-col items-end">
-                  <span className="text-rose-400 font-medium leading-tight">{data.emails?.gmail?.unread || 0} Unread</span>
-                  <span className="text-white/40 text-xs">{data.emails?.gmail?.total || 0} Total</span>
+                  <span className="text-rose-400 font-medium leading-tight">
+                    {data.emails?.gmail?.unread || 0} Unread
+                  </span>
+                  <span className="text-white/50 text-xs">
+                    {data.emails?.gmail?.total || 0} Total
+                  </span>
                 </div>
               </div>
               <div className="flex items-center justify-between">
@@ -401,13 +939,17 @@ export default function AmbientDashboard() {
                     <GraduationCap className="w-4 h-4 text-purple-400" />
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-white/90 font-medium leading-tight">University</span>
-                    <span className="text-white/40 text-xs">Exchange</span>
+                    <span className="text-white/95 font-medium leading-tight">University</span>
+                    <span className="text-white/50 text-xs">Exchange</span>
                   </div>
                 </div>
                 <div className="flex flex-col items-end">
-                  <span className="text-purple-400 font-medium leading-tight">{data.emails?.uni?.unread || 0} Unread</span>
-                  <span className="text-white/40 text-xs">{data.emails?.uni?.total || 0} Total</span>
+                  <span className="text-purple-400 font-medium leading-tight">
+                    {data.emails?.uni?.unread || 0} Unread
+                  </span>
+                  <span className="text-white/50 text-xs">
+                    {data.emails?.uni?.total || 0} Total
+                  </span>
                 </div>
               </div>
             </div>
@@ -415,16 +957,45 @@ export default function AmbientDashboard() {
 
           <GlassCard className="flex flex-col flex-1 min-h-0">
             <div className="flex items-center gap-2 mb-3 shrink-0">
-              <CheckCircle2 className="w-4 h-4 text-white/40" />
-              <span className="font-medium text-sm text-white/40 uppercase tracking-widest">7-Day Sleep</span>
+              <CheckCircle2 className="w-4 h-4 text-white/55" />
+              <span className="font-semibold text-sm text-white/55 uppercase tracking-widest">
+                7-Day Sleep
+              </span>
             </div>
-            <div className="flex items-center justify-between gap-3 flex-1 min-h-0">
-              {data.oura?.history && data.oura.history.length > 0 ? data.oura.history.map((d: any, i: number) => (
-                <div key={i} className="flex flex-col items-center justify-center flex-1 h-full bg-white/[0.04] rounded-2xl border border-white/5 shadow-inner">
-                  <span className="text-[10px] text-white/40 font-medium mb-1 uppercase tracking-widest">{d.label.substring(0,2)}</span>
-                  <span className="text-lg font-light text-white/90">{d.hours > 0 ? `${d.hours}` : '-'}</span>
-                </div>
-              )) : <span className="text-sm text-white/40 m-auto">Syncing...</span>}
+            <div className="flex items-stretch justify-between gap-2.5 flex-1 min-h-0 tabular-nums">
+              {data.oura?.history && data.oura.history.length > 0 ? (
+                data.oura.history.map((d, i) => {
+                  const barHeightPct =
+                    d.hours > 0 ? Math.min(100, Math.max(18, Math.round((d.hours / 9) * 100))) : 0;
+                  const barColor =
+                    d.hours >= 7.5
+                      ? 'bg-emerald-400/20 border-emerald-400/30'
+                      : d.hours >= 6.5
+                        ? 'bg-sky-400/20 border-sky-400/30'
+                        : 'bg-amber-400/20 border-amber-400/30';
+                  return (
+                    <div
+                      key={i}
+                      className="relative flex flex-col items-center justify-between py-2.5 px-1 flex-1 h-full bg-white/[0.03] rounded-2xl border border-white/[0.07] overflow-hidden"
+                    >
+                      {barHeightPct > 0 && (
+                        <div
+                          style={{ height: `${barHeightPct}%` }}
+                          className={`absolute bottom-0 left-0 right-0 border-t transition-all duration-700 ${barColor}`}
+                        />
+                      )}
+                      <span className="relative z-10 text-xs text-white/55 font-semibold uppercase tracking-wider">
+                        {d.label.substring(0, 2)}
+                      </span>
+                      <span className="relative z-10 text-lg font-medium text-white/95">
+                        {d.hours > 0 ? `${d.hours}h` : '-'}
+                      </span>
+                    </div>
+                  );
+                })
+              ) : (
+                <span className="text-sm text-white/50 m-auto">Syncing sleep history...</span>
+              )}
             </div>
           </GlassCard>
         </div>
@@ -432,78 +1003,162 @@ export default function AmbientDashboard() {
         {/* RIGHT COLUMN */}
         <div className={`${rightColSpan} flex flex-col gap-6 min-h-0 transition-all duration-700`}>
           {/* SCHEDULE */}
-          <GlassCard className="flex flex-col flex-1 min-h-0 relative">
-            <div className="absolute top-6 right-6 flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-white/40 text-[10px] uppercase tracking-widest">
+          <GlassCard
+            onClick={() => setManualModal('calendar')}
+            className="flex flex-col flex-1 min-h-0 relative"
+          >
+            <div className="absolute top-6 right-6 flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-white/[0.06] border border-white/10 text-white/55 text-[11px] font-medium uppercase tracking-widest">
               Press <ChevronRight className="w-3 h-3" />
             </div>
             <div className="flex items-center gap-2 mb-4 shrink-0">
-              <Calendar className="w-4 h-4 text-white/40" />
-              <span className="font-medium text-sm text-white/40 uppercase tracking-widest">Schedule</span>
+              <Calendar className="w-4 h-4 text-white/55" />
+              <span className="font-semibold text-sm text-white/55 uppercase tracking-widest">
+                Schedule
+              </span>
             </div>
             <div className="flex-1 overflow-y-auto pr-2">
               {Object.values(groupedEvents).length > 0 ? (
                 Object.values(groupedEvents).map((group, gIdx) => (
                   <div key={gIdx} className="mb-6 last:mb-0">
-                    <div className="text-[11px] font-medium text-white/40 uppercase tracking-widest mb-2 border-b border-white/10 pb-2">{group.dateLabel}</div>
+                    <div className="text-xs font-semibold text-white/55 uppercase tracking-widest mb-2 border-b border-white/10 pb-2">
+                      {group.dateLabel}
+                    </div>
                     <div className="flex flex-col">
-                      {group.items.map((ev: any, idx: number) => {
+                      {group.items.map((ev, idx) => {
                         const badge = getEventBadge(ev.summary);
+                        const BadgeIcon = badge.icon;
                         const isUni = ev.calendar === 'Uni';
-                        const evTime = new Date(ev.start).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+                        const evTime = new Date(ev.start).toLocaleTimeString('en-GB', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          timeZone: TZ,
+                        });
+                        const nowMs = now ? now.getTime() : 0;
+                        const isActiveNow =
+                          now !== null &&
+                          new Date(ev.start).getTime() <= nowMs &&
+                          (ev.end ? new Date(ev.end).getTime() > nowMs : false);
+
                         return (
-                          <div key={idx} className="py-3 flex items-center justify-between gap-4 border-b border-white/5 last:border-0">
+                          <div
+                            key={idx}
+                            className={`py-3 px-2 -mx-2 rounded-xl flex items-center justify-between gap-4 border-b border-white/[0.06] last:border-0 ${
+                              isActiveNow ? 'bg-emerald-500/[0.08]' : ''
+                            }`}
+                          >
                             <div className="flex items-center gap-4 min-w-0">
-                              <span className="w-[45px] text-sm font-medium text-white/50 shrink-0">{evTime}</span>
-                              <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${isUni ? 'bg-purple-400' : 'bg-white/40'}`}></div>
-                              <span className="text-lg font-medium text-white/95 truncate">{ev.summary}</span>
+                              <span className="w-[48px] text-sm font-medium tabular-nums text-white/65 shrink-0">
+                                {evTime}
+                              </span>
+                              <div
+                                className={`w-2 h-2 rounded-full shrink-0 ${
+                                  isActiveNow
+                                    ? 'bg-emerald-400 animate-pulse'
+                                    : isUni
+                                      ? 'bg-purple-400'
+                                      : 'bg-white/50'
+                                }`}
+                              />
+                              <span className="text-lg font-medium text-white/95 truncate">
+                                {ev.summary}
+                              </span>
+                              {ev.location && (
+                                <span className="text-xs font-medium text-white/45 truncate hidden xl:inline">
+                                  • {ev.location}
+                                </span>
+                              )}
                             </div>
-                            <span className="text-xs font-medium text-white/30 shrink-0">{badge.label}</span>
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/[0.04] border border-white/[0.07] shrink-0 ${badge.color}`}
+                            >
+                              <BadgeIcon className="w-3.5 h-3.5" />
+                              {badge.label}
+                            </span>
                           </div>
                         );
                       })}
                     </div>
                   </div>
                 ))
-              ) : <div className="text-sm text-white/40 m-auto flex items-center justify-center h-full">No upcoming schedule items</div>}
+              ) : (
+                <div className="text-sm text-white/50 m-auto flex items-center justify-center h-full">
+                  No upcoming schedule items
+                </div>
+              )}
             </div>
           </GlassCard>
 
           {/* REMINDERS */}
-          <GlassCard className="flex flex-col flex-1 min-h-0 relative">
-            <div className="absolute top-6 right-6 flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-white/40 text-[10px] uppercase tracking-widest">
+          <GlassCard
+            onClick={() => setManualModal('reminders')}
+            className="flex flex-col flex-1 min-h-0 relative"
+          >
+            <div className="absolute top-6 right-6 flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-white/[0.06] border border-white/10 text-white/55 text-[11px] font-medium uppercase tracking-widest">
               Press <ChevronDown className="w-3 h-3" />
             </div>
-            <div className="flex items-center gap-2 mb-4 shrink-0">
-              <CheckCircle2 className="w-4 h-4 text-white/40" />
-              <span className="font-medium text-sm text-white/40 uppercase tracking-widest">Today's Tasks</span>
+            <div className="flex items-center gap-2.5 mb-4 shrink-0">
+              <CheckCircle2 className="w-4 h-4 text-white/55" />
+              <span className="font-semibold text-sm text-white/55 uppercase tracking-widest">
+                Today&apos;s Tasks
+              </span>
+              {data.reminders.length > todayReminders.length && (
+                <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-white/[0.06] text-white/55 tabular-nums">
+                  {data.reminders.length} total
+                </span>
+              )}
             </div>
             <div className="flex-1 overflow-y-auto pr-2">
               {todayReminders.length > 0 ? (
                 <div className="flex flex-col">
-                  {todayReminders.map((item: any, idx: number) => {
+                  {todayReminders.map((item, idx) => {
                     const listStyle = getReminderListStyle(item.list || item.listName);
-                    const hasTime = !isNaN(new Date(item.dueDate).getTime()) && (new Date(item.dueDate).getHours() !== 0 || new Date(item.dueDate).getMinutes() !== 0);
+                    const dueDateObj = item.dueDate ? new Date(item.dueDate) : null;
+                    const hasTime =
+                      dueDateObj !== null &&
+                      !isNaN(dueDateObj.getTime()) &&
+                      (dueDateObj.getHours() !== 0 || dueDateObj.getMinutes() !== 0);
                     return (
-                      <div key={idx} className="py-3 flex items-center justify-between gap-4 border-b border-white/5 last:border-0">
+                      <div
+                        key={idx}
+                        className="py-3 flex items-center justify-between gap-4 border-b border-white/[0.06] last:border-0"
+                      >
                         <div className="flex items-center gap-4 min-w-0">
-                          <div className={`w-3.5 h-3.5 rounded-full border-[1.5px] shrink-0 ${listStyle.border} bg-transparent`}></div>
+                          <div
+                            className={`w-3.5 h-3.5 rounded-full border-2 shrink-0 ${listStyle.border} bg-transparent`}
+                          />
                           <div className="flex flex-col min-w-0">
-                            <span className="text-lg font-medium text-white/95 truncate leading-tight">{item.title || item.text}</span>
-                            <span className="text-xs font-medium text-white/40 capitalize">{listStyle.name}</span>
+                            <span className="text-lg font-medium text-white/95 truncate leading-tight">
+                              {item.title || item.text}
+                            </span>
+                            <span className={`text-xs font-medium capitalize ${listStyle.color}`}>
+                              {listStyle.name}
+                            </span>
                           </div>
                         </div>
-                        {hasTime && <span className="text-sm font-medium text-white/40 shrink-0">{new Date(item.dueDate).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>}
+                        {hasTime && dueDateObj && (
+                          <span className="text-sm font-medium tabular-nums text-white/60 shrink-0">
+                            {dueDateObj.toLocaleTimeString('en-GB', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              timeZone: TZ,
+                            })}
+                          </span>
+                        )}
                       </div>
                     );
                   })}
                 </div>
-              ) : <div className="text-sm font-medium text-white/40 m-auto flex items-center justify-center h-full">All done for today.</div>}
+              ) : (
+                <div className="text-sm font-medium text-white/50 m-auto flex items-center justify-center h-full">
+                  All done for today.
+                </div>
+              )}
             </div>
           </GlassCard>
         </div>
       </div>
 
-      <NewsTicker news={data.news} isEvening={isEvening} />
+      <NewsTicker news={data.news} isEvening={isEvening} isDeepSleep={isDeepSleep} />
     </main>
   );
 }

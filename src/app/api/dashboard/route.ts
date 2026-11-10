@@ -1,172 +1,422 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, connection } from 'next/server';
 import Parser from 'rss-parser';
-import ical from 'node-ical';
-import { createClient } from 'redis';
+import ical, { type CalendarComponent, type ParameterValue, type VEvent } from 'node-ical';
+import { getRedis } from '@/lib/redis';
 
-export async function GET(req: Request) {
-  const _skipPrerender = new URL(req.url);
+export const maxDuration = 30;
 
+const TZ = 'Europe/London';
+
+function toLocalIsoDate(date: Date): string {
+  return date.toLocaleDateString('en-CA', { timeZone: TZ });
+}
+
+function unwrapParam(val?: ParameterValue): string {
+  if (!val) return '';
+  return typeof val === 'string' ? val : val.val || '';
+}
+
+interface OuraHistoryDay {
+  day: string;
+  label: string;
+  sleep: number;
+  readiness: number;
+  hours: number;
+}
+
+interface OuraMetrics {
+  readiness: number | string;
+  sleep: number | string;
+  steps: number | string;
+  stress: string;
+  history: OuraHistoryDay[];
+}
+
+interface OuraTokenData {
+  access_token?: string;
+  refresh_token?: string;
+  expires_at?: number;
+}
+
+interface OuraDailyScoreItem {
+  day: string;
+  score?: number | null;
+  steps?: number | null;
+  stress_high?: number | null;
+  contributors?: {
+    total_sleep?: number;
+  };
+}
+
+interface OuraSleepPeriodItem {
+  day: string;
+  total_sleep_duration?: number | null;
+}
+
+interface CalendarEventItem {
+  summary: string;
+  start: string;
+  end: string;
+  location?: string;
+  calendar: 'Main' | 'Uni';
+  isFullDay?: boolean;
+}
+
+interface WeatherSummary {
+  temp: number | string;
+  precipitation: number;
+  aqi: number | string;
+  weatherCode: number;
+  isDay: number;
+}
+
+interface DashboardSnapshot {
+  weather: WeatherSummary;
+  oura: OuraMetrics;
+  events: CalendarEventItem[];
+  news: string[];
+  updatedAt: string;
+}
+
+function findLatestValue<T, V>(items: T[], selector: (item: T) => V | null | undefined): V | null {
+  for (let i = items.length - 1; i >= 0; i--) {
+    const val = selector(items[i]);
+    if (val !== undefined && val !== null) {
+      return val;
+    }
+  }
+  return null;
+}
+
+async function fetchCalendarFeed(
+  url: string | undefined,
+  calendarName: 'Main' | 'Uni',
+  now: Date,
+  rangeEnd: Date
+): Promise<CalendarEventItem[]> {
+  if (!url) return [];
   try {
-    const lat = process.env.LATITUDE || '54.7761';
-    const lon = process.env.LONGITUDE || '-1.5733';
+    const res = await fetch(url, { signal: AbortSignal.timeout(6500) });
+    if (!res.ok) return [];
+    const icsText = await res.text();
+    const parsed = ical.sync.parseICS(icsText);
+    const results: CalendarEventItem[] = [];
 
-    const [weatherRes, aqiRes] = await Promise.all([
-      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,precipitation&timezone=auto`, { next: { revalidate: 900 } }),
-      fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=european_aqi`, { next: { revalidate: 1800 } })
-    ]);
-    
-    const weatherData = await weatherRes.json();
-    const aqiData = await aqiRes.json();
+    Object.values(parsed).forEach((comp: CalendarComponent | undefined) => {
+      if (!comp || comp.type !== 'VEVENT') return;
+      const event = comp as VEvent;
+      if (event.recurrenceid) return;
 
-    let oura: any = { readiness: '--', sleep: '--', steps: '--', stress: '--', history: [] };
-    let tokenData: any = null;
+      try {
+        const instances = ical.expandRecurringEvent(event, {
+          from: now,
+          to: rangeEnd,
+          expandOngoing: true,
+        });
 
+        for (const inst of instances) {
+          const endDate = inst.end ? new Date(inst.end) : new Date(inst.start);
+          if (endDate < now) continue;
+          const summary = unwrapParam(inst.summary) || 'Untitled Event';
+          const location = unwrapParam(inst.event?.location);
+          results.push({
+            summary,
+            start: new Date(inst.start).toISOString(),
+            end: endDate.toISOString(),
+            location: location || undefined,
+            calendar: calendarName,
+            isFullDay: inst.isFullDay,
+          });
+        }
+      } catch {
+        const startDate = event.start ? new Date(event.start) : null;
+        const endDate = event.end ? new Date(event.end) : startDate;
+        if (startDate && endDate && endDate >= now && startDate <= rangeEnd) {
+          results.push({
+            summary: unwrapParam(event.summary) || 'Untitled Event',
+            start: startDate.toISOString(),
+            end: endDate.toISOString(),
+            location: unwrapParam(event.location) || undefined,
+            calendar: calendarName,
+          });
+        }
+      }
+    });
+
+    return results;
+  } catch (e) {
+    console.error(`[Calendar Fetch Error - ${calendarName}]:`, e);
+    return [];
+  }
+}
+
+export async function GET() {
+  await connection();
+
+  const redis = await getRedis().catch((e) => {
+    console.error('Redis connection failed:', e);
+    return null;
+  });
+
+  let lastGood: Partial<DashboardSnapshot> = {};
+  if (redis) {
     try {
-      const redis = await createClient({ url: process.env.REDIS_URL }).connect();
-      const tokenString = await redis.get('oura_tokens');
-      if (tokenString) tokenData = JSON.parse(tokenString);
-      await redis.disconnect();
+      const cached = await redis.get('dashboard_last_good');
+      if (cached) lastGood = JSON.parse(cached) as Partial<DashboardSnapshot>;
+    } catch {
+      // Ignore corrupt cache
+    }
+  }
+
+  const lat = process.env.LATITUDE || '54.7761';
+  const lon = process.env.LONGITUDE || '-1.5733';
+
+  // 1. Weather + AQI Task
+  const weatherTask = (async (): Promise<WeatherSummary> => {
+    try {
+      const [weatherRes, aqiRes] = await Promise.all([
+        fetch(
+          `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,precipitation,is_day&timezone=auto`,
+          { signal: AbortSignal.timeout(4500) }
+        ),
+        fetch(
+          `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=european_aqi`,
+          { signal: AbortSignal.timeout(4500) }
+        ),
+      ]);
+
+      const weatherData = weatherRes.ok ? await weatherRes.json() : null;
+      const aqiData = aqiRes.ok ? await aqiRes.json() : null;
+
+      if (weatherData?.current) {
+        return {
+          temp: Math.round(weatherData.current.temperature_2m ?? 0),
+          precipitation: weatherData.current.precipitation ?? 0,
+          aqi: aqiData?.current?.european_aqi ?? lastGood.weather?.aqi ?? '--',
+          weatherCode: weatherData.current.weather_code ?? 0,
+          isDay: weatherData.current.is_day ?? 1,
+        };
+      }
     } catch (e) {
-      console.error("Redis fetch failed", e);
+      console.error('Weather fetch failed:', e);
+    }
+    return (
+      lastGood.weather ?? {
+        temp: '--',
+        precipitation: 0,
+        aqi: '--',
+        weatherCode: 0,
+        isDay: 1,
+      }
+    );
+  })();
+
+  // 2. Oura Biometrics Task
+  const ouraTask = (async (): Promise<OuraMetrics> => {
+    const fallbackOura: OuraMetrics = lastGood.oura ?? {
+      readiness: '--',
+      sleep: '--',
+      steps: '--',
+      stress: '--',
+      history: [],
+    };
+
+    if (!redis) return fallbackOura;
+
+    let tokenData: OuraTokenData | null = null;
+    try {
+      const tokenString = await redis.get('oura_tokens');
+      if (tokenString) tokenData = JSON.parse(tokenString) as OuraTokenData;
+    } catch (e) {
+      console.error('Oura token read failed:', e);
     }
 
-    if (tokenData && tokenData.refresh_token) {
-      try {
-        if (Date.now() > tokenData.expires_at) {
-          const refreshRes = await fetch('https://api.ouraring.com/oauth/token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'AmbientDashboard/1.0' },
-            body: new URLSearchParams({
-              grant_type: 'refresh_token',
-              client_id: process.env.OURA_CLIENT_ID || '',
-              client_secret: process.env.OURA_CLIENT_SECRET || '',
-              refresh_token: tokenData.refresh_token
-            })
-          });
+    if (!tokenData?.refresh_token) return fallbackOura;
+
+    try {
+      if (Date.now() > (tokenData.expires_at ?? 0)) {
+        const refreshRes = await fetch('https://api.ouraring.com/oauth/token', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'User-Agent': 'AmbientDashboard/1.0',
+          },
+          body: new URLSearchParams({
+            grant_type: 'refresh_token',
+            client_id: process.env.OURA_CLIENT_ID || '',
+            client_secret: process.env.OURA_CLIENT_SECRET || '',
+            refresh_token: tokenData.refresh_token,
+          }),
+          signal: AbortSignal.timeout(5000),
+        });
+
+        if (refreshRes.ok) {
           const newTokens = await refreshRes.json();
           if (newTokens.access_token) {
             tokenData = {
               access_token: newTokens.access_token,
               refresh_token: newTokens.refresh_token || tokenData.refresh_token,
-              expires_at: Date.now() + ((newTokens.expires_in || 86400) * 1000) - 300000
+              expires_at: Date.now() + (newTokens.expires_in || 86400) * 1000 - 300000,
             };
-            try {
-              const redis = await createClient({ url: process.env.REDIS_URL }).connect();
-              await redis.set('oura_tokens', JSON.stringify(tokenData));
-              await redis.disconnect();
-            } catch (e) {}
+            await redis.set('oura_tokens', JSON.stringify(tokenData));
           }
         }
-
-        if (tokenData.access_token) {
-          const now = new Date();
-          const past = new Date();
-          past.setDate(past.getDate() - 8);
-          const endDate = now.toISOString().split('T')[0];
-          const startDate = past.toISOString().split('T')[0];
-          const headers = { 'Authorization': `Bearer ${tokenData.access_token}`, 'User-Agent': 'AmbientDashboard/1.0' };
-          
-          const [readinessRes, sleepRes, activityRes, stressRes, sleepPeriodsRes] = await Promise.all([
-            fetch(`https://api.ouraring.com/v2/usercollection/daily_readiness?start_date=${startDate}&end_date=${endDate}`, { headers }),
-            fetch(`https://api.ouraring.com/v2/usercollection/daily_sleep?start_date=${startDate}&end_date=${endDate}`, { headers }),
-            fetch(`https://api.ouraring.com/v2/usercollection/daily_activity?start_date=${startDate}&end_date=${endDate}`, { headers }),
-            fetch(`https://api.ouraring.com/v2/usercollection/daily_stress?start_date=${startDate}&end_date=${endDate}`, { headers }),
-            fetch(`https://api.ouraring.com/v2/usercollection/sleep?start_date=${startDate}&end_date=${endDate}`, { headers })
-          ]);
-
-          const readinessData = readinessRes.ok ? (await readinessRes.json()).data || [] : [];
-          const sleepData = sleepRes.ok ? (await sleepRes.json()).data || [] : [];
-          const activityData = activityRes.ok ? (await activityRes.json()).data || [] : [];
-          const stressData = stressRes.ok ? (await stressRes.json()).data || [] : [];
-          const sleepPeriodsData = sleepPeriodsRes.ok ? (await sleepPeriodsRes.json()).data || [] : [];
-
-          oura.readiness = readinessData[readinessData.length - 1]?.score ?? '--';
-          oura.sleep = sleepData[sleepData.length - 1]?.score ?? '--';
-          oura.steps = activityData[activityData.length - 1]?.steps ?? '--';
-          const stressHigh = stressData[stressData.length - 1]?.stress_high;
-          if (stressHigh !== undefined && stressHigh !== null) {
-            oura.stress = Math.round(stressHigh / 60).toString();
-          }
-
-          const dayMap: Record<string, any> = {};
-          for (let i = 6; i >= 0; i--) {
-            const d = new Date();
-            d.setDate(d.getDate() - i);
-            const iso = d.toISOString().split('T')[0];
-            const label = d.toLocaleDateString('en-GB', { weekday: 'short' }).slice(0, 2);
-            dayMap[iso] = { day: iso, label, sleep: 0, readiness: 0, hours: 0 };
-          }
-
-          sleepData.forEach((item: any) => {
-            if (dayMap[item.day]) {
-              dayMap[item.day].sleep = item.score || 0;
-              if (!dayMap[item.day].hours && item.contributors?.total_sleep) {
-                dayMap[item.day].hours = Number(((item.contributors.total_sleep / 100) * 8.5).toFixed(1));
-              }
-            }
-          });
-
-          readinessData.forEach((item: any) => {
-            if (dayMap[item.day]) dayMap[item.day].readiness = item.score || 0;
-          });
-
-          sleepPeriodsData.forEach((item: any) => {
-            if (dayMap[item.day] && item.total_sleep_duration) {
-              const hrs = Number((item.total_sleep_duration / 3600).toFixed(1));
-              if (hrs > dayMap[item.day].hours) dayMap[item.day].hours = hrs;
-            }
-          });
-
-          oura.history = Object.values(dayMap);
-        }
-      } catch (e) {
-        console.error("Oura Error:", e);
       }
-    }
 
-    let calendarEvents: any[] = [];
-    try {
-      const mainUrl = process.env.GOOGLE_CALENDAR_URL_MAIN;
-      const uniUrl = process.env.GOOGLE_CALENDAR_URL_UNI;
+      if (!tokenData.access_token) return fallbackOura;
+
       const now = new Date();
-      const allEvents: any[] = [];
+      const past = new Date();
+      past.setDate(past.getDate() - 8);
+      const endDate = toLocalIsoDate(now);
+      const startDate = toLocalIsoDate(past);
+      const headers = {
+        Authorization: `Bearer ${tokenData.access_token}`,
+        'User-Agent': 'AmbientDashboard/1.0',
+      };
 
-      if (mainUrl) {
-        const mainData = await ical.async.fromURL(mainUrl);
-        Object.values(mainData).forEach((e: any) => {
-          if (e.type === 'VEVENT' && new Date(e.start) >= now) {
-            allEvents.push({ summary: e.summary, start: e.start, calendar: 'Main' });
-          }
-        });
+      const [readinessRes, sleepRes, activityRes, stressRes, sleepPeriodsRes] = await Promise.all([
+        fetch(
+          `https://api.ouraring.com/v2/usercollection/daily_readiness?start_date=${startDate}&end_date=${endDate}`,
+          { headers, signal: AbortSignal.timeout(5500) }
+        ),
+        fetch(
+          `https://api.ouraring.com/v2/usercollection/daily_sleep?start_date=${startDate}&end_date=${endDate}`,
+          { headers, signal: AbortSignal.timeout(5500) }
+        ),
+        fetch(
+          `https://api.ouraring.com/v2/usercollection/daily_activity?start_date=${startDate}&end_date=${endDate}`,
+          { headers, signal: AbortSignal.timeout(5500) }
+        ),
+        fetch(
+          `https://api.ouraring.com/v2/usercollection/daily_stress?start_date=${startDate}&end_date=${endDate}`,
+          { headers, signal: AbortSignal.timeout(5500) }
+        ),
+        fetch(
+          `https://api.ouraring.com/v2/usercollection/sleep?start_date=${startDate}&end_date=${endDate}`,
+          { headers, signal: AbortSignal.timeout(5500) }
+        ),
+      ]);
+
+      const readinessData: OuraDailyScoreItem[] = readinessRes.ok
+        ? (await readinessRes.json()).data || []
+        : [];
+      const sleepData: OuraDailyScoreItem[] = sleepRes.ok
+        ? (await sleepRes.json()).data || []
+        : [];
+      const activityData: OuraDailyScoreItem[] = activityRes.ok
+        ? (await activityRes.json()).data || []
+        : [];
+      const stressData: OuraDailyScoreItem[] = stressRes.ok
+        ? (await stressRes.json()).data || []
+        : [];
+      const sleepPeriodsData: OuraSleepPeriodItem[] = sleepPeriodsRes.ok
+        ? (await sleepPeriodsRes.json()).data || []
+        : [];
+
+      const readinessScore = findLatestValue(readinessData, (d) => d.score);
+      const sleepScore = findLatestValue(sleepData, (d) => d.score);
+      const stepsCount = findLatestValue(activityData, (d) => d.steps);
+      const stressHigh = findLatestValue(stressData, (d) => d.stress_high);
+
+      const dayMap: Record<string, OuraHistoryDay> = {};
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const iso = toLocalIsoDate(d);
+        const label = d.toLocaleDateString('en-GB', { weekday: 'short', timeZone: TZ }).slice(0, 2);
+        dayMap[iso] = { day: iso, label, sleep: 0, readiness: 0, hours: 0 };
       }
 
-      if (uniUrl) {
-        const uniData = await ical.async.fromURL(uniUrl);
-        Object.values(uniData).forEach((e: any) => {
-          if (e.type === 'VEVENT' && new Date(e.start) >= now) {
-            allEvents.push({ summary: e.summary, start: e.start, calendar: 'Uni' });
+      sleepData.forEach((item) => {
+        if (dayMap[item.day]) {
+          dayMap[item.day].sleep = item.score || 0;
+          if (!dayMap[item.day].hours && item.contributors?.total_sleep) {
+            dayMap[item.day].hours = Number(
+              ((item.contributors.total_sleep / 100) * 8.5).toFixed(1)
+            );
           }
-        });
-      }
+        }
+      });
 
-      calendarEvents = allEvents.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()).slice(0, 12);
-    } catch (e) {}
+      readinessData.forEach((item) => {
+        if (dayMap[item.day]) {
+          dayMap[item.day].readiness = item.score || 0;
+        }
+      });
 
-    const parser = new Parser();
-    const feed = await parser.parseURL('https://feeds.bbci.co.uk/news/world/rss.xml');
-    const news = feed.items.slice(0, 6).map(item => item.title);
+      sleepPeriodsData.forEach((item) => {
+        if (dayMap[item.day] && item.total_sleep_duration) {
+          const hrs = Number((item.total_sleep_duration / 3600).toFixed(1));
+          if (hrs > dayMap[item.day].hours) dayMap[item.day].hours = hrs;
+        }
+      });
 
-    return NextResponse.json({
-      weather: {
-        temp: Math.round(weatherData.current?.temperature_2m ?? 0),
-        precipitation: weatherData.current?.precipitation ?? 0,
-        aqi: aqiData.current?.european_aqi ?? '--',
-      },
-      oura,
-      events: calendarEvents,
-      news,
-    });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+      return {
+        readiness: readinessScore ?? fallbackOura.readiness,
+        sleep: sleepScore ?? fallbackOura.sleep,
+        steps: stepsCount ?? fallbackOura.steps,
+        stress:
+          stressHigh !== null ? Math.round(stressHigh / 60).toString() : fallbackOura.stress,
+        history: Object.values(dayMap),
+      };
+    } catch (e) {
+      console.error('Oura API error:', e);
+      return fallbackOura;
+    }
+  })();
+
+  // 3. Google Calendars Task (Parallel Main + Uni with RRULE & ongoing support)
+  const calendarTask = (async (): Promise<CalendarEventItem[]> => {
+    const now = new Date();
+    const rangeEnd = new Date(now.getTime() + 21 * 86400000);
+    const [mainEvents, uniEvents] = await Promise.all([
+      fetchCalendarFeed(process.env.GOOGLE_CALENDAR_URL_MAIN, 'Main', now, rangeEnd),
+      fetchCalendarFeed(process.env.GOOGLE_CALENDAR_URL_UNI, 'Uni', now, rangeEnd),
+    ]);
+    const combined = [...mainEvents, ...uniEvents].sort(
+      (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
+    );
+    if (combined.length > 0 || (!process.env.GOOGLE_CALENDAR_URL_MAIN && !process.env.GOOGLE_CALENDAR_URL_UNI)) {
+      return combined.slice(0, 16);
+    }
+    return lastGood.events ?? [];
+  })();
+
+  // 4. BBC News RSS Task (Protected with timeout & fallback)
+  const newsTask = (async (): Promise<string[]> => {
+    try {
+      const parser = new Parser({ timeout: 5000 });
+      const feed = await parser.parseURL('https://feeds.bbci.co.uk/news/world/rss.xml');
+      const headlines = feed.items
+        .slice(0, 8)
+        .map((item) => item.title?.trim() || '')
+        .filter(Boolean);
+      if (headlines.length > 0) return headlines;
+    } catch (e) {
+      console.error('BBC RSS fetch failed:', e);
+    }
+    return lastGood.news ?? [];
+  })();
+
+  const [weather, oura, events, news] = await Promise.all([
+    weatherTask,
+    ouraTask,
+    calendarTask,
+    newsTask,
+  ]);
+
+  const payload: DashboardSnapshot = {
+    weather,
+    oura,
+    events,
+    news,
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (redis) {
+    redis.set('dashboard_last_good', JSON.stringify(payload)).catch(() => {});
   }
+
+  return NextResponse.json(payload);
 }
