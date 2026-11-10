@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from 'redis';
 
-export const dynamic = 'force-dynamic'; // <--- THIS FIXES THE VERCEL CRASH
-
 export async function GET(req: Request) {
   try {
     const redis = await createClient({ url: process.env.REDIS_URL }).connect();
