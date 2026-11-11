@@ -26,8 +26,15 @@ import {
   TrendingDown,
   Battery,
   Footprints,
+  Pill,
+  Sparkles,
   type LucideIcon,
 } from 'lucide-react';
+import {
+  MedLogPayload,
+  computePKStats,
+  generateDayCurve,
+} from '@/lib/meds';
 
 const TZ = 'Europe/London';
 
@@ -113,6 +120,7 @@ interface DashboardState {
   reminders: ReminderItem[];
   emails: EmailsData;
   gold: GoldData;
+  meds: MedLogPayload;
   updatedAt?: string;
 }
 
@@ -333,7 +341,7 @@ function getSmoothCurvePath(points: { x: number; y: number }[]): string {
 
 export default function AmbientDashboard() {
   const [now, setNow] = useState<Date | null>(null);
-  const [manualModal, setManualModal] = useState<'calendar' | 'reminders' | 'oura' | null>(null);
+  const [manualModal, setManualModal] = useState<'calendar' | 'reminders' | 'oura' | 'meds' | null>(null);
   const [dismissedEventKey, setDismissedEventKey] = useState<string | null>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
   const [syncError, setSyncError] = useState(false);
@@ -355,6 +363,7 @@ export default function AmbientDashboard() {
       profitPct: 0,
       isProfit: false,
     },
+    meds: { date: '', taken: {} },
   });
 
   useEffect(() => {
@@ -369,10 +378,11 @@ export default function AmbientDashboard() {
   useEffect(() => {
     const fetchDashboard = async () => {
       try {
-        const [dashRes, remRes, emailRes] = await Promise.allSettled([
+        const [dashRes, remRes, emailRes, medRes] = await Promise.allSettled([
           fetch('/api/dashboard', { cache: 'no-store' }),
           fetch('/api/reminders', { cache: 'no-store' }),
           fetch('/api/emails', { cache: 'no-store' }),
+          fetch('/api/meds', { cache: 'no-store' }),
         ]);
 
         let anySuccess = false;
@@ -418,6 +428,14 @@ export default function AmbientDashboard() {
           const emailJson = (await emailRes.value.json()) as EmailsData;
           if (emailJson?.gmail && emailJson?.uni) {
             updates.emails = emailJson;
+            anySuccess = true;
+          }
+        }
+
+        if (medRes.status === 'fulfilled' && medRes.value.ok) {
+          const medJson = (await medRes.value.json()) as MedLogPayload;
+          if (medJson && medJson.taken) {
+            updates.meds = medJson;
             anySuccess = true;
           }
         }
@@ -471,7 +489,7 @@ export default function AmbientDashboard() {
     upcomingAlertEvent && upcomingEventKey && dismissedEventKey !== upcomingEventKey
   );
 
-  const activeModal: 'calendar' | 'reminders' | 'oura' | 'upcoming' | null =
+  const activeModal: 'calendar' | 'reminders' | 'oura' | 'meds' | 'upcoming' | null =
     manualModal ?? (isUpcomingModalOpen ? 'upcoming' : null);
 
   useEffect(() => {
@@ -482,6 +500,9 @@ export default function AmbientDashboard() {
       }
       if (e.key === 'ArrowDown') {
         setManualModal((prev) => (prev === 'reminders' ? null : 'reminders'));
+      }
+      if (e.key === 'm' || e.key === 'M') {
+        setManualModal((prev) => (prev === 'meds' ? null : 'meds'));
       }
       if (e.key === 'Enter' || e.key === 'Escape' || e.key === 'Backspace') {
         if (isUpcomingModalOpen && upcomingEventKey) {
@@ -798,6 +819,108 @@ export default function AmbientDashboard() {
 
     return { points, curveD, areaD };
   }, [data.oura?.history]);
+
+  // Pharmacokinetic stats and plasma simulation for ADHD medications
+  const pkStats = useMemo(() => {
+    if (!now) return null;
+    return computePKStats(now, data.meds?.taken);
+  }, [now, data.meds?.taken]);
+
+  const pkCurve = useMemo(() => {
+    if (!now) return null;
+    return generateDayCurve(now, data.meds?.taken);
+  }, [now, data.meds?.taken]);
+
+  // Sparkline coordinates for main medication card
+  const medSparkline = useMemo(() => {
+    if (!pkCurve || pkCurve.points.length === 0) return null;
+    const width = 340;
+    const height = 76;
+    const padLeft = 8;
+    const padRight = 8;
+    const padTop = 10;
+    const padBottom = 16;
+    const graphW = width - padLeft - padRight;
+    const graphH = height - padTop - padBottom;
+    const totalHours = Math.max(4, pkCurve.endHour - pkCurve.startHour);
+    const maxC = Math.max(15, pkCurve.maxConc * 1.15);
+
+    const pts = pkCurve.points.map((p) => {
+      const x = padLeft + ((p.hour - pkCurve.startHour) / totalHours) * graphW;
+      const y = padTop + graphH - (p.conc / maxC) * graphH;
+      return { x: Number(x.toFixed(1)), y: Number(y.toFixed(1)) };
+    });
+
+    const curveD = getSmoothCurvePath(pts);
+    const areaD =
+      pts.length > 0
+        ? `${curveD} L ${pts[pts.length - 1].x} ${padTop + graphH} L ${pts[0].x} ${padTop + graphH} Z`
+        : '';
+
+    let nowX = null;
+    let nowY = null;
+    if (pkCurve.currentHourDec >= pkCurve.startHour && pkCurve.currentHourDec <= pkCurve.endHour) {
+      nowX = Number(
+        (padLeft + ((pkCurve.currentHourDec - pkCurve.startHour) / totalHours) * graphW).toFixed(1)
+      );
+      nowY = Number((padTop + graphH - (pkCurve.nowConc / maxC) * graphH).toFixed(1));
+    }
+
+    // Grid markers for [8, 12, 16, 20]
+    const gridHours = [8, 12, 16, 20]
+      .filter((h) => h > pkCurve.startHour && h < pkCurve.endHour)
+      .map((gh) => ({
+        hour: gh,
+        x: Number((padLeft + ((gh - pkCurve.startHour) / totalHours) * graphW).toFixed(1)),
+      }));
+
+    return { curveD, areaD, nowX, nowY, gridHours, padTop, graphH };
+  }, [pkCurve]);
+
+  // Large modal concentration graph coordinates (width 920, height 210)
+  const modalMedGraph = useMemo(() => {
+    if (!pkCurve || pkCurve.points.length === 0) return null;
+    const width = 920;
+    const height = 210;
+    const padLeft = 40;
+    const padRight = 40;
+    const padTop = 20;
+    const padBottom = 30;
+    const graphW = width - padLeft - padRight;
+    const graphH = height - padTop - padBottom;
+    const totalHours = Math.max(4, pkCurve.endHour - pkCurve.startHour);
+    const maxC = Math.max(15, pkCurve.maxConc * 1.15);
+
+    const pts = pkCurve.points.map((p) => {
+      const x = padLeft + ((p.hour - pkCurve.startHour) / totalHours) * graphW;
+      const y = padTop + graphH - (p.conc / maxC) * graphH;
+      return { x: Number(x.toFixed(1)), y: Number(y.toFixed(1)) };
+    });
+
+    const curveD = getSmoothCurvePath(pts);
+    const areaD =
+      pts.length > 0
+        ? `${curveD} L ${pts[pts.length - 1].x} ${padTop + graphH} L ${pts[0].x} ${padTop + graphH} Z`
+        : '';
+
+    let nowX = null;
+    let nowY = null;
+    if (pkCurve.currentHourDec >= pkCurve.startHour && pkCurve.currentHourDec <= pkCurve.endHour) {
+      nowX = Number(
+        (padLeft + ((pkCurve.currentHourDec - pkCurve.startHour) / totalHours) * graphW).toFixed(1)
+      );
+      nowY = Number((padTop + graphH - (pkCurve.nowConc / maxC) * graphH).toFixed(1));
+    }
+
+    const gridHours = [6, 8, 10, 12, 14, 16, 18, 20, 22]
+      .filter((h) => h >= pkCurve.startHour && h <= pkCurve.endHour)
+      .map((gh) => ({
+        hour: gh,
+        x: Number((padLeft + ((gh - pkCurve.startHour) / totalHours) * graphW).toFixed(1)),
+      }));
+
+    return { curveD, areaD, nowX, nowY, gridHours, padTop, graphH, padLeft, graphW, maxC };
+  }, [pkCurve]);
 
   // Large high-resolution sleep telemetry graph for the expanded Oura modal
   const modalSleepGraphData = useMemo(() => {
@@ -1222,6 +1345,267 @@ export default function AmbientDashboard() {
               </div>
             </div>
           )}
+
+          {activeModal === 'meds' && (
+            <div className="flex flex-col h-full justify-between p-2 max-w-6xl mx-auto w-full">
+              {/* MODAL HEADER */}
+              <div className="flex items-center justify-between pb-4 border-b border-white/10 shrink-0">
+                <div className="flex items-center gap-3">
+                  <Pill className="w-8 h-8 text-sky-400" />
+                  <div>
+                    <h2 className="text-3xl font-semibold text-white tracking-tight">
+                      ADHD Medication &amp; Pharmacokinetics
+                    </h2>
+                    <p className="text-white/50 text-sm">
+                      Clinical single-compartment first-order absorption &amp; clearance model
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl border border-sky-500/30 bg-sky-500/10 text-sky-300 text-sm font-semibold tabular-nums">
+                    <span>Peak Today: {pkStats?.peakTime || '--:--'}</span>
+                    {pkStats && pkStats.peakLevel > 0 && (
+                      <span className="opacity-75">({pkStats.peakLevel.toFixed(1)} ng/mL)</span>
+                    )}
+                  </div>
+
+                  <div className="px-3.5 py-1.5 rounded-xl bg-white/[0.05] border border-white/10 text-white/70 text-sm font-semibold tabular-nums">
+                    Est. Clear: {pkStats?.clearTime || '--:--'}
+                  </div>
+                </div>
+              </div>
+
+              {/* 3 CORE SUMMARY CARDS */}
+              <div className="grid grid-cols-3 gap-6 my-4 shrink-0 tabular-nums">
+                <div className="bg-white/[0.04] border border-white/[0.08] p-5 rounded-2xl flex flex-col justify-between">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-white/60 text-xs font-semibold uppercase tracking-widest">
+                      Serum Concentration
+                    </span>
+                    <span
+                      className={`w-2.5 h-2.5 rounded-full ${
+                        (pkStats?.currentLevel ?? 0) > 20
+                          ? 'bg-sky-400 animate-pulse'
+                          : 'bg-white/20'
+                      }`}
+                    />
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-5xl font-light text-white">
+                      {pkStats?.currentLevel !== undefined
+                        ? pkStats.currentLevel.toFixed(1)
+                        : '--'}
+                    </span>
+                    <span className="text-lg text-white/45">ng/mL</span>
+                  </div>
+                </div>
+
+                <div className="bg-white/[0.04] border border-white/[0.08] p-5 rounded-2xl flex flex-col justify-between">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-white/60 text-xs font-semibold uppercase tracking-widest">
+                      Daily Protocol Dosing
+                    </span>
+                    <Sparkles className="w-4 h-4 text-amber-400" />
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {pkStats?.doses.map((d) => (
+                      <div
+                        key={d.id}
+                        className={`px-3 py-1 rounded-xl text-xs font-semibold border ${
+                          d.isTaken
+                            ? 'bg-sky-500/15 border-sky-500/35 text-sky-300'
+                            : 'bg-white/[0.04] border-white/10 text-white/45'
+                        }`}
+                      >
+                        {d.isTaken ? '✓ ' : ''}
+                        {d.name} {d.takeCount > 1 ? `(${d.takeCount}x)` : ''}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-white/[0.04] border border-white/[0.08] p-5 rounded-2xl flex flex-col justify-between">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-white/60 text-xs font-semibold uppercase tracking-widest">
+                      Elimination Dynamics
+                    </span>
+                    <Activity className="w-4 h-4 text-emerald-400" />
+                  </div>
+                  <div className="text-sm text-white/70">
+                    <div className="flex justify-between py-0.5">
+                      <span className="text-white/45">Half-life (t½)</span>
+                      <span className="font-mono text-white/90">10.2 hours</span>
+                    </div>
+                    <div className="flex justify-between py-0.5">
+                      <span className="text-white/45">Elimination rate (ke)</span>
+                      <span className="font-mono text-white/90">0.068 h⁻¹</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* LARGE HIGH-DEFINITION PLASMA CONCENTRATION CURVE */}
+              <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-6 flex flex-col flex-1 min-h-0 relative">
+                <div className="flex items-center justify-between mb-2 shrink-0">
+                  <div className="flex items-center gap-2.5">
+                    <Activity className="w-5 h-5 text-sky-400" />
+                    <span className="font-semibold text-base text-white/90 uppercase tracking-wider">
+                      24-Hour Plasma Concentration Curve
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 tabular-nums text-xs text-white/50">
+                    <span>Continuous Simulation</span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse" />
+                  </div>
+                </div>
+
+                {/* GRAPH */}
+                <div className="flex-1 min-h-0 flex items-center justify-center relative w-full">
+                  {modalMedGraph && (
+                    <svg
+                      viewBox="0 0 920 210"
+                      className="w-full h-full max-h-[220px] overflow-visible select-none"
+                    >
+                      <defs>
+                        <linearGradient id="modalMedAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.35" />
+                          <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.0" />
+                        </linearGradient>
+                        <linearGradient id="modalMedStrokeGrad" x1="0" y1="0" x2="1" y2="0">
+                          <stop offset="0%" stopColor="#818cf8" />
+                          <stop offset="50%" stopColor="#38bdf8" />
+                          <stop offset="100%" stopColor="#06b6d4" />
+                        </linearGradient>
+                      </defs>
+
+                      {/* Grid markers */}
+                      {modalMedGraph.gridHours.map((gh) => (
+                        <g key={gh.hour}>
+                          <line
+                            x1={gh.x}
+                            y1={modalMedGraph.padTop}
+                            x2={gh.x}
+                            y2={modalMedGraph.padTop + modalMedGraph.graphH}
+                            stroke="rgba(255,255,255,0.08)"
+                            strokeDasharray="3 3"
+                          />
+                          <text
+                            x={gh.x}
+                            y={modalMedGraph.padTop + modalMedGraph.graphH + 18}
+                            textAnchor="middle"
+                            fill="rgba(255,255,255,0.4)"
+                            fontSize="11.5"
+                            fontWeight="600"
+                            className="font-mono tabular-nums"
+                          >
+                            {String(gh.hour).padStart(2, '0')}:00
+                          </text>
+                        </g>
+                      ))}
+
+                      {/* Area Fill */}
+                      <path d={modalMedGraph.areaD} fill="url(#modalMedAreaGrad)" />
+
+                      {/* Curve Line */}
+                      <path
+                        d={modalMedGraph.curveD}
+                        fill="none"
+                        stroke="url(#modalMedStrokeGrad)"
+                        strokeWidth="3.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+
+                      {/* Vertical line and pulse node for NOW */}
+                      {modalMedGraph.nowX !== null && modalMedGraph.nowY !== null && (
+                        <g>
+                          <line
+                            x1={modalMedGraph.nowX}
+                            y1={modalMedGraph.padTop}
+                            x2={modalMedGraph.nowX}
+                            y2={modalMedGraph.padTop + modalMedGraph.graphH}
+                            stroke="rgba(255,255,255,0.5)"
+                            strokeWidth="1.5"
+                            strokeDasharray="4 4"
+                          />
+                          <text
+                            x={modalMedGraph.nowX}
+                            y={modalMedGraph.nowY - 14}
+                            textAnchor="middle"
+                            fill="#38bdf8"
+                            fontSize="13"
+                            fontWeight="700"
+                            className="tabular-nums font-mono drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]"
+                          >
+                            NOW: {pkStats?.currentLevel.toFixed(1)} ng/mL
+                          </text>
+                          <circle
+                            cx={modalMedGraph.nowX}
+                            cy={modalMedGraph.nowY}
+                            r="10"
+                            fill="none"
+                            stroke="#38bdf8"
+                            strokeWidth="2"
+                            opacity="0.6"
+                            className="animate-pulse"
+                          />
+                          <circle
+                            cx={modalMedGraph.nowX}
+                            cy={modalMedGraph.nowY}
+                            r="5"
+                            fill="#ffffff"
+                            stroke="#0b0f19"
+                            strokeWidth="2"
+                          />
+                        </g>
+                      )}
+                    </svg>
+                  )}
+                </div>
+              </div>
+
+              {/* DOSE LOG DETAILS */}
+              <div className="bg-white/[0.02] border border-white/[0.06] rounded-2xl p-4 mt-3 shrink-0">
+                <div className="text-xs font-semibold text-white/50 uppercase tracking-widest mb-2">
+                  Today&apos;s Administration Log
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  {pkStats?.doses.map((d) => (
+                    <div
+                      key={d.id}
+                      className="px-3.5 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-between"
+                    >
+                      <div className="flex flex-col">
+                        <span className="text-white text-sm font-semibold">{d.name}</span>
+                        <span className="text-white/40 text-xs">
+                          {d.timesToday.length > 0
+                            ? `Taken: ${d.timesToday
+                                .map((t) =>
+                                  new Date(t).toLocaleTimeString('en-GB', {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })
+                                )
+                                .join(', ')}`
+                            : `Scheduled: ${d.schedTime}`}
+                        </span>
+                      </div>
+                      <span
+                        className={`text-xs px-2.5 py-1 rounded-lg font-semibold tabular-nums ${
+                          d.isTaken
+                            ? 'bg-sky-500/15 text-sky-300 border border-sky-500/30'
+                            : 'bg-white/[0.05] text-white/40'
+                        }`}
+                      >
+                        {d.isTaken ? `${d.takeCount}x Logged` : 'Pending'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -1623,7 +2007,167 @@ export default function AmbientDashboard() {
             </div>
           </GlassCard>
 
-          {/* 3. INBOXES */}
+          {/* 3. ADHD MEDICATION PROTOCOL (PHARMACOKINETICS) */}
+          <GlassCard
+            onClick={() => setManualModal('meds')}
+            className="flex flex-col shrink-0 !p-5 relative cursor-pointer hover:bg-white/[0.05] transition-all group"
+          >
+            <div className="absolute top-5 right-5 flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.06] border border-white/10 text-white/50 text-[10px] font-medium uppercase tracking-wider">
+              Press M
+            </div>
+            <div className="flex items-center justify-between mb-3 shrink-0">
+              <div className="flex items-center gap-2">
+                <Pill className="w-4 h-4 text-sky-400" />
+                <span className="font-semibold text-sm text-white/60 uppercase tracking-widest">
+                  ADHD Protocol
+                </span>
+              </div>
+              <div className="flex items-center gap-2 tabular-nums mr-14">
+                <div className="flex items-baseline gap-1">
+                  <span
+                    className={`text-lg font-bold ${
+                      (pkStats?.currentLevel ?? 0) > 20
+                        ? 'text-sky-300 drop-shadow-[0_0_8px_rgba(56,189,248,0.4)]'
+                        : 'text-white/60'
+                    }`}
+                  >
+                    {pkStats?.currentLevel !== undefined ? pkStats.currentLevel.toFixed(1) : '--'}
+                  </span>
+                  <span className="text-[11px] font-medium text-white/45">ng/mL</span>
+                </div>
+              </div>
+            </div>
+
+            {/* DOSES STATUS PILLS */}
+            <div className="flex items-center gap-1.5 mb-2 shrink-0 flex-wrap">
+              {pkStats?.doses.map((d) => (
+                <div
+                  key={d.id}
+                  className={`px-2 py-0.5 rounded-md text-[11px] font-semibold tabular-nums border flex items-center gap-1 transition-all ${
+                    d.isTaken
+                      ? 'bg-sky-500/15 border-sky-500/35 text-sky-300'
+                      : d.isOverdue
+                        ? 'bg-amber-500/15 border-amber-500/35 text-amber-300'
+                        : 'bg-white/[0.04] border-white/10 text-white/45'
+                  }`}
+                >
+                  {d.isTaken ? '✓ ' : ''}
+                  <span>{d.shortName}</span>
+                  {d.takeCount > 1 && <span className="opacity-75">({d.takeCount}x)</span>}
+                  {!d.isTaken && <span className="opacity-60 text-[10px]">{d.schedTime}</span>}
+                </div>
+              ))}
+            </div>
+
+            {/* MINI PK SPARKLINE GRAPH */}
+            {medSparkline && (
+              <div className="w-full h-[64px] relative my-0.5 select-none">
+                <svg viewBox="0 0 340 76" className="w-full h-full overflow-visible">
+                  <defs>
+                    <linearGradient id="medAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.28" />
+                      <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.0" />
+                    </linearGradient>
+                    <linearGradient id="medStrokeGrad" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#818cf8" />
+                      <stop offset="50%" stopColor="#38bdf8" />
+                      <stop offset="100%" stopColor="#06b6d4" />
+                    </linearGradient>
+                  </defs>
+
+                  {/* Grid hour markers */}
+                  {medSparkline.gridHours.map((gh) => (
+                    <g key={gh.hour}>
+                      <line
+                        x1={gh.x}
+                        y1={medSparkline.padTop}
+                        x2={gh.x}
+                        y2={medSparkline.padTop + medSparkline.graphH}
+                        stroke="rgba(255,255,255,0.06)"
+                        strokeDasharray="2 2"
+                      />
+                      <text
+                        x={gh.x}
+                        y={medSparkline.padTop + medSparkline.graphH + 11}
+                        textAnchor="middle"
+                        fill="rgba(255,255,255,0.3)"
+                        fontSize="8.5"
+                        fontWeight="600"
+                        className="font-mono tabular-nums"
+                      >
+                        {gh.hour}:00
+                      </text>
+                    </g>
+                  ))}
+
+                  {/* Gradient Area Fill */}
+                  <path d={medSparkline.areaD} fill="url(#medAreaGrad)" />
+
+                  {/* Smooth Concentration Curve */}
+                  <path
+                    d={medSparkline.curveD}
+                    fill="none"
+                    stroke="url(#medStrokeGrad)"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+
+                  {/* Vertical line and pulse node for NOW */}
+                  {medSparkline.nowX !== null && medSparkline.nowY !== null && (
+                    <g>
+                      <line
+                        x1={medSparkline.nowX}
+                        y1={medSparkline.padTop}
+                        x2={medSparkline.nowX}
+                        y2={medSparkline.padTop + medSparkline.graphH}
+                        stroke="rgba(255,255,255,0.4)"
+                        strokeWidth="1"
+                        strokeDasharray="2 2"
+                      />
+                      <circle
+                        cx={medSparkline.nowX}
+                        cy={medSparkline.nowY}
+                        r="6"
+                        fill="none"
+                        stroke="#38bdf8"
+                        strokeWidth="1.5"
+                        opacity="0.6"
+                        className="animate-pulse"
+                      />
+                      <circle
+                        cx={medSparkline.nowX}
+                        cy={medSparkline.nowY}
+                        r="3.5"
+                        fill="#ffffff"
+                        stroke="#0b0f19"
+                        strokeWidth="1.5"
+                      />
+                    </g>
+                  )}
+                </svg>
+              </div>
+            )}
+
+            {/* PK STATS FOOTER ROW */}
+            <div className="flex items-center justify-between text-[11px] text-white/50 pt-1 border-t border-white/[0.05] tabular-nums shrink-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-white/35">Peak</span>
+                <span className="text-white/85 font-medium">{pkStats?.peakTime || '--:--'}</span>
+                {pkStats && pkStats.peakLevel > 0 && (
+                  <span className="text-white/40 text-[10px]">
+                    ({pkStats.peakLevel.toFixed(0)})
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-white/35">Clear</span>
+                <span className="text-sky-300/80 font-medium">{pkStats?.clearTime || '--:--'}</span>
+              </div>
+            </div>
+          </GlassCard>
+
+          {/* 4. INBOXES */}
           <GlassCard className="flex flex-col shrink-0">
             <div className="flex items-center gap-2 mb-4 shrink-0">
               <Mail className="w-4 h-4 text-white/55" />
