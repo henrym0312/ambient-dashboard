@@ -22,6 +22,7 @@ interface OuraHistoryDay {
   sleep: number;
   readiness: number;
   hours: number;
+  formattedTime?: string;
 }
 
 interface OuraMetrics {
@@ -284,10 +285,12 @@ export async function GET() {
 
       if (!tokenData.access_token) return fallbackOura;
 
-      const now = new Date();
       const past = new Date();
       past.setDate(past.getDate() - 8);
-      const endDate = toLocalIsoDate(now);
+      // Query up to tomorrow so today's morning sleep is guaranteed to be included
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const endDate = toLocalIsoDate(tomorrow);
       const startDate = toLocalIsoDate(past);
       const headers = {
         Authorization: `Bearer ${tokenData.access_token}`,
@@ -362,17 +365,12 @@ export async function GET() {
         d.setDate(d.getDate() - i);
         const iso = toLocalIsoDate(d);
         const label = d.toLocaleDateString('en-GB', { weekday: 'short', timeZone: TZ }).slice(0, 2);
-        dayMap[iso] = { day: iso, label, sleep: 0, readiness: 0, hours: 0 };
+        dayMap[iso] = { day: iso, label, sleep: 0, readiness: 0, hours: 0, formattedTime: '--' };
       }
 
       sleepData.forEach((item) => {
         if (dayMap[item.day]) {
           dayMap[item.day].sleep = item.score || 0;
-          if (!dayMap[item.day].hours && item.contributors?.total_sleep) {
-            dayMap[item.day].hours = Number(
-              ((item.contributors.total_sleep / 100) * 8.5).toFixed(1)
-            );
-          }
         }
       });
 
@@ -382,10 +380,21 @@ export async function GET() {
         }
       });
 
-      sleepPeriodsData.forEach((item) => {
-        if (dayMap[item.day] && item.total_sleep_duration) {
-          const hrs = Number((item.total_sleep_duration / 3600).toFixed(1));
-          if (hrs > dayMap[item.day].hours) dayMap[item.day].hours = hrs;
+      // Capture exact duration from /v2/usercollection/sleep (total_sleep_duration in seconds)
+      const daySecondsMap: Record<string, number> = {};
+      sleepPeriodsData.forEach((period) => {
+        if (period.day && typeof period.total_sleep_duration === 'number' && period.total_sleep_duration > 0) {
+          daySecondsMap[period.day] = Math.max(daySecondsMap[period.day] || 0, period.total_sleep_duration);
+        }
+      });
+
+      Object.entries(daySecondsMap).forEach(([day, totalSecs]) => {
+        if (dayMap[day]) {
+          const totalMins = Math.round(totalSecs / 60);
+          const hrs = Math.floor(totalMins / 60);
+          const mins = totalMins % 60;
+          dayMap[day].hours = Number((totalSecs / 3600).toFixed(2));
+          dayMap[day].formattedTime = mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`;
         }
       });
 

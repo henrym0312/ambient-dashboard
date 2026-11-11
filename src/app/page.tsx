@@ -55,6 +55,7 @@ interface OuraHistoryItem {
   sleep: number;
   readiness: number;
   hours: number;
+  formattedTime?: string;
 }
 
 interface OuraData {
@@ -298,6 +299,35 @@ function getScoreDotColor(score: number | string): string {
   if (num >= 85) return 'bg-emerald-400';
   if (num >= 70) return 'bg-sky-400';
   return 'bg-amber-400';
+}
+
+function formatSleepDuration(hours: number, formattedTime?: string): string {
+  if (formattedTime && formattedTime !== '--') return formattedTime;
+  if (!hours || hours <= 0) return '--';
+  const totalMins = Math.round(hours * 60);
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
+function getSmoothCurvePath(points: { x: number; y: number }[]): string {
+  if (points.length === 0) return '';
+  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
+  let d = `M ${points[0].x} ${points[0].y}`;
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[i === 0 ? 0 : i - 1];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[i + 2 < points.length ? i + 2 : i + 1];
+
+    const cp1x = p1.x + (p2.x - p0.x) / 6;
+    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp2x = p2.x - (p3.x - p1.x) / 6;
+    const cp2y = p2.y - (p3.y - p1.y) / 6;
+
+    d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+  }
+  return d;
 }
 
 export default function AmbientDashboard() {
@@ -567,7 +597,7 @@ export default function AmbientDashboard() {
   const groupedEvents: Record<string, { dateLabel: string; isToday: boolean; items: CalendarEvent[] }> =
     {};
   if (now && data.events) {
-    data.events.slice(0, 10).forEach((ev) => {
+    data.events.slice(0, 4).forEach((ev) => {
       const evDate = new Date(ev.start);
       const iso = evDate.toLocaleDateString('en-CA', { timeZone: TZ });
       const formattedDate =
@@ -588,7 +618,6 @@ export default function AmbientDashboard() {
 
   const currentHour = now ? now.getHours() : 12;
   const currentMinute = now ? now.getMinutes() : 0;
-  const isMorning = currentHour >= 6 && currentHour < 9;
   const isDeepWork = currentHour >= 9 && currentHour < 17;
   const isEvening = currentHour >= 20 || currentHour < 6;
   const isDeepSleep = (currentHour === 23 && currentMinute >= 30) || currentHour < 6;
@@ -698,9 +727,32 @@ export default function AmbientDashboard() {
       return (a.item.title || a.item.text || '').localeCompare(b.item.title || b.item.text || '');
     });
 
-    // Equal 2-column layout showing up to 10 tasks (5 per column) with zero scrolling or cutoffs
-    return scored.slice(0, 10).map((s) => s.item);
+    // Equal 2-column layout showing up to 8 tasks (4 per column) with zero scrolling or cutoffs
+    return scored.slice(0, 8).map((s) => s.item);
   }, [data.reminders, getReminderDueMeta]);
+
+  // Total active reminders due today (or overdue from earlier)
+  const remindersLeftToday = useMemo(() => {
+    const all = data.reminders || [];
+    if (!todayIso || all.length === 0) return 0;
+    return all.filter((r) => {
+      const meta = getReminderDueMeta(r);
+      return meta.isToday || meta.isOverdue;
+    }).length;
+  }, [data.reminders, getReminderDueMeta, todayIso]);
+
+  // Total events remaining today (start or end is in the future)
+  const eventsLeftToday = useMemo(() => {
+    if (!now || !data.events || data.events.length === 0) return 0;
+    const nowMs = now.getTime();
+    return data.events.filter((ev) => {
+      const evDate = new Date(ev.start);
+      const iso = evDate.toLocaleDateString('en-CA', { timeZone: TZ });
+      if (iso !== todayIso) return false;
+      const endMs = ev.end ? new Date(ev.end).getTime() : new Date(ev.start).getTime() + 3600000;
+      return endMs > nowMs;
+    }).length;
+  }, [now, data.events, todayIso]);
 
   const sleepStats = useMemo(() => {
     const hist = data.oura?.history || [];
@@ -715,6 +767,35 @@ export default function AmbientDashboard() {
         ? Math.round(validScores.reduce((acc, s) => acc + s, 0) / validScores.length)
         : null;
     return { avgHours, avgScore };
+  }, [data.oura?.history]);
+
+  // Generate smooth SVG line telemetry curve and coordinates for 7-day sleep
+  const sleepGraphData = useMemo(() => {
+    const hist = data.oura?.history || [];
+    if (hist.length === 0) return null;
+
+    const points = hist.map((d, i) => {
+      const x = 25 + i * 50; // 7 points evenly spaced from 25 to 325 across width 350
+      const clampHours = Math.max(3.5, Math.min(9.5, d.hours || 3.5));
+      const y = 92 - ((clampHours - 3.5) / 6.0) * 62;
+      const timeStr = formatSleepDuration(d.hours, d.formattedTime);
+      return {
+        x,
+        y: Number(y.toFixed(1)),
+        hours: d.hours,
+        timeStr,
+        label: d.label.slice(0, 2),
+        isLatest: i === hist.length - 1,
+      };
+    });
+
+    const curveD = getSmoothCurvePath(points);
+    const areaD =
+      points.length > 0
+        ? `${curveD} L ${points[points.length - 1].x} 104 L ${points[0].x} 104 Z`
+        : '';
+
+    return { points, curveD, areaD };
   }, [data.oura?.history]);
 
   // Check if nextEvent is currently active and calculate progress
@@ -962,13 +1043,7 @@ export default function AmbientDashboard() {
                 }`}
               />
               <span className="text-xs font-semibold uppercase tracking-widest text-white/60">
-                {nextEventStatus.isActive
-                  ? 'Now Active'
-                  : isMorning
-                    ? 'Morning'
-                    : isDeepWork
-                      ? 'Focus'
-                      : 'Next Up'}
+                {nextEventStatus.isActive ? 'NOW ACTIVE' : 'UP NEXT'}
               </span>
             </div>
             {nextEventStatus.isSoon && (data.weather?.precipitation ?? 0) > 0 && (
@@ -1167,9 +1242,9 @@ export default function AmbientDashboard() {
             </div>
           </GlassCard>
 
-          {/* 2. 7-DAY SLEEP ARCHITECTURE */}
+          {/* 2. 7-DAY SLEEP ARCHITECTURE (SMOOTH TELEMETRY LINE GRAPH) */}
           <GlassCard className="flex flex-col flex-1 min-h-0 !p-5 relative overflow-hidden">
-            <div className="flex items-center justify-between mb-3 shrink-0">
+            <div className="flex items-center justify-between mb-2 shrink-0">
               <div className="flex items-center gap-2">
                 <Moon className="w-4 h-4 text-indigo-400" />
                 <span className="font-semibold text-sm text-white/60 uppercase tracking-widest">
@@ -1190,51 +1265,115 @@ export default function AmbientDashboard() {
               </div>
             </div>
 
-            {/* SLEEP DAYS ROW */}
-            <div className="grid grid-cols-7 gap-2 flex-1 items-end min-h-0 pb-1">
-              {data.oura?.history && data.oura.history.length > 0 ? (
-                data.oura.history.map((d, i) => {
-                  const maxDisplayHours = 9.5;
-                  const heightPct =
-                    d.hours > 0
-                      ? Math.min(100, Math.max(14, Math.round((d.hours / maxDisplayHours) * 100)))
-                      : 8;
-                  const isOptimal = d.hours >= 7.5;
-                  const isGood = d.hours >= 6.5;
+            {/* SVG TELEMETRY LINE GRAPH */}
+            <div className="flex-1 min-h-0 flex items-center justify-center relative">
+              {sleepGraphData && sleepGraphData.points.length > 0 ? (
+                <svg
+                  viewBox="0 0 350 134"
+                  className="w-full h-full max-h-[145px] overflow-visible select-none"
+                >
+                  <defs>
+                    <linearGradient id="sleepAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#818cf8" stopOpacity="0.32" />
+                      <stop offset="100%" stopColor="#818cf8" stopOpacity="0.0" />
+                    </linearGradient>
+                    <linearGradient id="sleepStrokeGrad" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#6366f1" />
+                      <stop offset="50%" stopColor="#818cf8" />
+                      <stop offset="100%" stopColor="#38bdf8" />
+                    </linearGradient>
+                  </defs>
 
-                  return (
-                    <div
-                      key={i}
-                      className="flex flex-col items-center justify-end h-full gap-2 group"
-                    >
-                      <span className="text-[12px] font-semibold tabular-nums text-white/80 shrink-0">
-                        {d.hours > 0 ? `${d.hours}h` : '-'}
-                      </span>
+                  {/* 8h Target Guideline */}
+                  <line
+                    x1="20"
+                    y1="45.5"
+                    x2="330"
+                    y2="45.5"
+                    stroke="rgba(255,255,255,0.08)"
+                    strokeDasharray="3 3"
+                  />
+                  <text
+                    x="332"
+                    y="48.5"
+                    fill="rgba(255,255,255,0.25)"
+                    fontSize="9"
+                    textAnchor="start"
+                    className="font-mono tabular-nums"
+                  >
+                    8h
+                  </text>
 
-                      {/* Micro Capsule Track */}
-                      <div className="w-full flex-1 max-h-[85px] bg-white/[0.04] rounded-full p-0.5 flex flex-col justify-end overflow-hidden border border-white/[0.06]">
-                        <div
-                          style={{ height: `${heightPct}%` }}
-                          className={`w-full rounded-full transition-all duration-700 ${
-                            isOptimal
-                              ? 'bg-gradient-to-t from-indigo-500 to-sky-400 shadow-[0_0_12px_rgba(99,102,241,0.35)]'
-                              : isGood
-                                ? 'bg-gradient-to-t from-sky-600 to-teal-400'
-                                : 'bg-gradient-to-t from-amber-600 to-amber-400'
-                          }`}
+                  {/* Gradient Area Fill */}
+                  <path d={sleepGraphData.areaD} fill="url(#sleepAreaGrad)" />
+
+                  {/* Smooth Curve Line */}
+                  <path
+                    d={sleepGraphData.curveD}
+                    fill="none"
+                    stroke="url(#sleepStrokeGrad)"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+
+                  {/* Day Nodes & Labels */}
+                  {sleepGraphData.points.map((pt, i) => (
+                    <g key={i}>
+                      {/* Exact time label directly above node (e.g. 4h 30m, 6h 51m) */}
+                      <text
+                        x={pt.x}
+                        y={pt.y - 10}
+                        textAnchor="middle"
+                        fill={pt.isLatest ? '#38bdf8' : 'rgba(255,255,255,0.85)'}
+                        fontSize="10"
+                        fontWeight="600"
+                        className="tabular-nums font-mono drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]"
+                      >
+                        {pt.timeStr}
+                      </text>
+
+                      {/* Pulsing ring for latest / today */}
+                      {pt.isLatest && (
+                        <circle
+                          cx={pt.x}
+                          cy={pt.y}
+                          r="7"
+                          fill="none"
+                          stroke="#38bdf8"
+                          strokeWidth="1.5"
+                          opacity="0.6"
+                          className="animate-pulse"
                         />
-                      </div>
+                      )}
 
-                      <span className="text-[11px] font-semibold uppercase text-white/45 tracking-wider shrink-0">
-                        {d.label.substring(0, 2)}
-                      </span>
-                    </div>
-                  );
-                })
+                      {/* Node circle */}
+                      <circle
+                        cx={pt.x}
+                        cy={pt.y}
+                        r={pt.isLatest ? 4.5 : 3.5}
+                        fill={pt.isLatest ? '#38bdf8' : '#818cf8'}
+                        stroke="#0b0f19"
+                        strokeWidth="2"
+                      />
+
+                      {/* Day of week below */}
+                      <text
+                        x={pt.x}
+                        y="124"
+                        textAnchor="middle"
+                        fill={pt.isLatest ? '#38bdf8' : 'rgba(255,255,255,0.45)'}
+                        fontSize="11"
+                        fontWeight="600"
+                        className="uppercase tracking-wider font-sans"
+                      >
+                        {pt.label}
+                      </text>
+                    </g>
+                  ))}
+                </svg>
               ) : (
-                <div className="col-span-7 text-xs text-white/40 m-auto">
-                  Syncing sleep telemetry...
-                </div>
+                <div className="text-xs text-white/40 m-auto">Syncing sleep telemetry...</div>
               )}
             </div>
           </GlassCard>
@@ -1300,10 +1439,13 @@ export default function AmbientDashboard() {
             <div className="absolute top-6 right-6 flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-white/[0.06] border border-white/10 text-white/55 text-[11px] font-medium uppercase tracking-widest">
               Press <ChevronRight className="w-3 h-3" />
             </div>
-            <div className="flex items-center gap-2 mb-4 shrink-0">
+            <div className="flex items-center gap-2.5 mb-4 shrink-0">
               <Calendar className="w-4 h-4 text-white/55" />
               <span className="font-semibold text-sm text-white/55 uppercase tracking-widest">
                 Schedule
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-white/[0.06] text-white/55 tabular-nums">
+                {eventsLeftToday} left today
               </span>
             </div>
             <div className="flex-1 overflow-hidden pr-2">
@@ -1468,11 +1610,9 @@ export default function AmbientDashboard() {
               <span className="font-semibold text-sm text-white/55 uppercase tracking-widest">
                 Tasks &amp; Reminders
               </span>
-              {data.reminders.length > 0 && (
-                <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-white/[0.06] text-white/55 tabular-nums">
-                  {data.reminders.length} active
-                </span>
-              )}
+              <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-white/[0.06] text-white/55 tabular-nums">
+                {remindersLeftToday} left today
+              </span>
             </div>
             <div className="flex-1 overflow-hidden pr-2">
               {todayReminders.length > 0 ? (
