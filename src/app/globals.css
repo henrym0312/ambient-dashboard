@@ -30,7 +30,7 @@ body {
 .animate-ticker {
   display: flex;
   width: max-content;
-  animation: ticker 55s linear infinite;
+  animation: ticker 110s linear infinite;
   will-change: transform;
 }
 

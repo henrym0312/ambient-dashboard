@@ -235,15 +235,61 @@ const UpcomingEventModal = ({
   );
 };
 
-function getWeatherIcon(code: number = 0, isDay: number = 1): { Icon: LucideIcon; color: string } {
-  if (code >= 95) return { Icon: CloudLightning, color: 'text-amber-400' };
-  if (code >= 71 && code <= 86) return { Icon: CloudSnow, color: 'text-sky-200' };
-  if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) {
-    return { Icon: CloudRain, color: 'text-sky-400' };
+function getTempColor(temp: number | string): string {
+  const num = typeof temp === 'number' ? temp : parseFloat(String(temp));
+  if (isNaN(num)) return 'text-white/95';
+  if (num <= 0) return 'text-sky-300';
+  if (num <= 7) return 'text-cyan-400';
+  if (num <= 14) return 'text-teal-300';
+  if (num <= 20) return 'text-emerald-300';
+  if (num <= 26) return 'text-amber-300';
+  if (num <= 31) return 'text-orange-400';
+  return 'text-rose-400';
+}
+
+function getWeatherIcon(
+  code: number = 0,
+  isDay: number = 1
+): { Icon: LucideIcon; color: string; glow: string } {
+  if (code >= 95) {
+    return {
+      Icon: CloudLightning,
+      color: 'text-amber-400',
+      glow: 'drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]',
+    };
   }
-  if (code >= 1 && code <= 48) return { Icon: Cloud, color: 'text-neutral-300' };
-  if (isDay === 0) return { Icon: Moon, color: 'text-indigo-300' };
-  return { Icon: Sun, color: 'text-amber-300' };
+  if (code >= 71 && code <= 86) {
+    return {
+      Icon: CloudSnow,
+      color: 'text-sky-200',
+      glow: 'drop-shadow-[0_0_8px_rgba(186,230,253,0.6)]',
+    };
+  }
+  if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) {
+    return {
+      Icon: CloudRain,
+      color: 'text-sky-400',
+      glow: 'drop-shadow-[0_0_8px_rgba(56,189,248,0.5)]',
+    };
+  }
+  if (code >= 45 && code <= 48) {
+    return { Icon: Cloud, color: 'text-slate-300', glow: '' };
+  }
+  if (code >= 1 && code <= 44) {
+    return { Icon: Cloud, color: 'text-zinc-300', glow: '' };
+  }
+  if (isDay === 0) {
+    return {
+      Icon: Moon,
+      color: 'text-indigo-300',
+      glow: 'drop-shadow-[0_0_10px_rgba(165,180,252,0.4)]',
+    };
+  }
+  return {
+    Icon: Sun,
+    color: 'text-amber-400',
+    glow: 'drop-shadow-[0_0_12px_rgba(251,191,36,0.6)]',
+  };
 }
 
 function getScoreDotColor(score: number | string): string {
@@ -652,13 +698,24 @@ export default function AmbientDashboard() {
       return (a.item.title || a.item.text || '').localeCompare(b.item.title || b.item.text || '');
     });
 
-    // Two-column layout allows showing up to 16 tasks clearly
-    const urgent = scored.filter((s) => s.meta.isOverdue || s.meta.isToday);
-    if (urgent.length >= 12) {
-      return urgent.slice(0, 16).map((s) => s.item);
-    }
-    return scored.slice(0, 16).map((s) => s.item);
+    // Equal 2-column layout showing up to 10 tasks (5 per column) with zero scrolling or cutoffs
+    return scored.slice(0, 10).map((s) => s.item);
   }, [data.reminders, getReminderDueMeta]);
+
+  const sleepStats = useMemo(() => {
+    const hist = data.oura?.history || [];
+    const validHours = hist.map((d) => d.hours).filter((h) => h > 0);
+    const validScores = hist.map((d) => d.sleep).filter((s) => s > 0);
+    const avgHours =
+      validHours.length > 0
+        ? (validHours.reduce((acc, h) => acc + h, 0) / validHours.length).toFixed(1)
+        : null;
+    const avgScore =
+      validScores.length > 0
+        ? Math.round(validScores.reduce((acc, s) => acc + s, 0) / validScores.length)
+        : null;
+    return { avgHours, avgScore };
+  }, [data.oura?.history]);
 
   // Check if nextEvent is currently active and calculate progress
   const nextEventStatus = useMemo(() => {
@@ -682,10 +739,13 @@ export default function AmbientDashboard() {
     now && lastSyncedAt ? Math.floor((now.getTime() - lastSyncedAt.getTime()) / 60000) : null;
   const isStale = syncError || (syncAgeMins !== null && syncAgeMins >= 15);
 
-  const { Icon: WeatherIcon, color: weatherIconColor } = getWeatherIcon(
-    data.weather?.weatherCode,
-    data.weather?.isDay
-  );
+  const {
+    Icon: WeatherIcon,
+    color: weatherIconColor,
+    glow: weatherIconGlow,
+  } = getWeatherIcon(data.weather?.weatherCode, data.weather?.isDay);
+
+  const tempColor = getTempColor(data.weather?.temp);
 
   const renderModal = () => {
     if (!activeModal) return null;
@@ -947,9 +1007,12 @@ export default function AmbientDashboard() {
             <span className="text-xs font-semibold uppercase tracking-widest text-white/55">
               Weather
             </span>
-            <div className="flex items-center gap-2 tabular-nums">
-              <span className="text-3xl font-light text-white/95">{data.weather?.temp}°</span>
-              <WeatherIcon className={`w-6 h-6 ${weatherIconColor}`} />
+            <div className="flex items-center gap-2.5 tabular-nums">
+              <span className={`text-3xl font-light tracking-tight ${tempColor}`}>
+                {data.weather?.temp}
+                <span className={tempColor}>°</span>
+              </span>
+              <WeatherIcon className={`w-6 h-6 ${weatherIconColor} ${weatherIconGlow}`} />
             </div>
             <div className="text-[11px] font-medium text-white/50 tabular-nums">
               {(data.weather?.precipitation ?? 0) > 0
@@ -1028,20 +1091,39 @@ export default function AmbientDashboard() {
             className="flex flex-col justify-between shrink-0 !pb-6 relative"
           >
             <div className="absolute top-6 right-6 flex items-center gap-2.5">
-              {data.oura?.battery !== undefined && data.oura?.battery !== null && (
-                <div
-                  className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[11px] font-medium tabular-nums ${
-                    data.oura.battery >= 40
+              <div
+                title={
+                  data.oura?.battery !== undefined && data.oura?.battery !== null
+                    ? `Ring Battery: ${data.oura.battery}%`
+                    : 'Oura Ring Paired'
+                }
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[11px] font-medium tabular-nums ${
+                  data.oura?.battery !== undefined && data.oura?.battery !== null
+                    ? data.oura.battery >= 40
                       ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-300'
                       : data.oura.battery >= 20
                         ? 'bg-amber-500/10 border-amber-500/25 text-amber-300'
                         : 'bg-rose-500/10 border-rose-500/25 text-rose-300'
+                    : 'bg-white/[0.04] border-white/10 text-white/50'
+                }`}
+              >
+                <Battery
+                  className={`w-3.5 h-3.5 ${
+                    data.oura?.battery !== undefined && data.oura?.battery !== null
+                      ? data.oura.battery >= 40
+                        ? 'text-emerald-400'
+                        : data.oura.battery >= 20
+                          ? 'text-amber-400'
+                          : 'text-rose-400'
+                      : 'text-white/40'
                   }`}
-                >
-                  <Battery className="w-3.5 h-3.5" />
-                  <span>{data.oura.battery}%</span>
-                </div>
-              )}
+                />
+                <span>
+                  {data.oura?.battery !== undefined && data.oura?.battery !== null
+                    ? `${data.oura.battery}%`
+                    : 'Ring --%'}
+                </span>
+              </div>
               <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-white/[0.06] border border-white/10 text-white/55 text-[11px] font-medium uppercase tracking-widest">
                 <ChevronLeft className="w-3 h-3" /> Press
               </div>
@@ -1085,47 +1167,74 @@ export default function AmbientDashboard() {
             </div>
           </GlassCard>
 
-          {/* 2. 7-DAY SLEEP */}
-          <GlassCard className="flex flex-col flex-1 min-h-0">
-            <div className="flex items-center gap-2 mb-3 shrink-0">
-              <CheckCircle2 className="w-4 h-4 text-white/55" />
-              <span className="font-semibold text-sm text-white/55 uppercase tracking-widest">
-                7-Day Sleep
-              </span>
+          {/* 2. 7-DAY SLEEP ARCHITECTURE */}
+          <GlassCard className="flex flex-col flex-1 min-h-0 !p-5 relative overflow-hidden">
+            <div className="flex items-center justify-between mb-3 shrink-0">
+              <div className="flex items-center gap-2">
+                <Moon className="w-4 h-4 text-indigo-400" />
+                <span className="font-semibold text-sm text-white/60 uppercase tracking-widest">
+                  Sleep Trend
+                </span>
+              </div>
+              <div className="flex items-center gap-2 tabular-nums">
+                {sleepStats.avgHours && (
+                  <span className="px-2 py-0.5 rounded-md bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-medium">
+                    {sleepStats.avgHours}h avg
+                  </span>
+                )}
+                {sleepStats.avgScore && (
+                  <span className="px-2 py-0.5 rounded-md bg-white/[0.05] border border-white/10 text-white/60 text-xs font-medium">
+                    {sleepStats.avgScore} score
+                  </span>
+                )}
+              </div>
             </div>
-            <div className="flex items-stretch justify-between gap-2.5 flex-1 min-h-0 tabular-nums">
+
+            {/* SLEEP DAYS ROW */}
+            <div className="grid grid-cols-7 gap-2 flex-1 items-end min-h-0 pb-1">
               {data.oura?.history && data.oura.history.length > 0 ? (
                 data.oura.history.map((d, i) => {
-                  const barHeightPct =
-                    d.hours > 0 ? Math.min(100, Math.max(18, Math.round((d.hours / 9) * 100))) : 0;
-                  const barColor =
-                    d.hours >= 7.5
-                      ? 'bg-emerald-400/20 border-emerald-400/30'
-                      : d.hours >= 6.5
-                        ? 'bg-sky-400/20 border-sky-400/30'
-                        : 'bg-amber-400/20 border-amber-400/30';
+                  const maxDisplayHours = 9.5;
+                  const heightPct =
+                    d.hours > 0
+                      ? Math.min(100, Math.max(14, Math.round((d.hours / maxDisplayHours) * 100)))
+                      : 8;
+                  const isOptimal = d.hours >= 7.5;
+                  const isGood = d.hours >= 6.5;
+
                   return (
                     <div
                       key={i}
-                      className="relative flex flex-col items-center justify-between py-2.5 px-1 flex-1 h-full bg-white/[0.03] rounded-2xl border border-white/[0.07] overflow-hidden"
+                      className="flex flex-col items-center justify-end h-full gap-2 group"
                     >
-                      {barHeightPct > 0 && (
-                        <div
-                          style={{ height: `${barHeightPct}%` }}
-                          className={`absolute bottom-0 left-0 right-0 border-t transition-all duration-700 ${barColor}`}
-                        />
-                      )}
-                      <span className="relative z-10 text-xs text-white/55 font-semibold uppercase tracking-wider">
-                        {d.label.substring(0, 2)}
-                      </span>
-                      <span className="relative z-10 text-lg font-medium text-white/95">
+                      <span className="text-[12px] font-semibold tabular-nums text-white/80 shrink-0">
                         {d.hours > 0 ? `${d.hours}h` : '-'}
+                      </span>
+
+                      {/* Micro Capsule Track */}
+                      <div className="w-full flex-1 max-h-[85px] bg-white/[0.04] rounded-full p-0.5 flex flex-col justify-end overflow-hidden border border-white/[0.06]">
+                        <div
+                          style={{ height: `${heightPct}%` }}
+                          className={`w-full rounded-full transition-all duration-700 ${
+                            isOptimal
+                              ? 'bg-gradient-to-t from-indigo-500 to-sky-400 shadow-[0_0_12px_rgba(99,102,241,0.35)]'
+                              : isGood
+                                ? 'bg-gradient-to-t from-sky-600 to-teal-400'
+                                : 'bg-gradient-to-t from-amber-600 to-amber-400'
+                          }`}
+                        />
+                      </div>
+
+                      <span className="text-[11px] font-semibold uppercase text-white/45 tracking-wider shrink-0">
+                        {d.label.substring(0, 2)}
                       </span>
                     </div>
                   );
                 })
               ) : (
-                <span className="text-sm text-white/50 m-auto">Syncing sleep history...</span>
+                <div className="col-span-7 text-xs text-white/40 m-auto">
+                  Syncing sleep telemetry...
+                </div>
               )}
             </div>
           </GlassCard>
@@ -1197,7 +1306,7 @@ export default function AmbientDashboard() {
                 Schedule
               </span>
             </div>
-            <div className="flex-1 overflow-y-auto pr-2">
+            <div className="flex-1 overflow-hidden pr-2">
               {Object.values(groupedEvents).length > 0 ? (
                 Object.values(groupedEvents).map((group, gIdx) => (
                   <div key={gIdx} className="mb-6 last:mb-0">
@@ -1346,7 +1455,7 @@ export default function AmbientDashboard() {
             </div>
           </GlassCard>
 
-          {/* TASKS & REMINDERS (TWO COLUMNS) */}
+          {/* TASKS & REMINDERS (TWO BALANCED COLUMNS, ZERO SCROLLING) */}
           <GlassCard
             onClick={() => setManualModal('reminders')}
             className="flex flex-col flex-1 min-h-0 relative"
@@ -1365,7 +1474,7 @@ export default function AmbientDashboard() {
                 </span>
               )}
             </div>
-            <div className="flex-1 overflow-y-auto pr-2">
+            <div className="flex-1 overflow-hidden pr-2">
               {todayReminders.length > 0 ? (
                 <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
                   {todayReminders.map((item, idx) => {
@@ -1374,7 +1483,7 @@ export default function AmbientDashboard() {
                     return (
                       <div
                         key={item.id || idx}
-                        className="py-2.5 px-2 rounded-xl flex items-center justify-between gap-3 border-b border-white/[0.05] hover:bg-white/[0.02] transition-colors"
+                        className="py-2 px-2.5 rounded-xl flex items-center justify-between gap-3 border-b border-white/[0.05] hover:bg-white/[0.02] transition-colors"
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <div
