@@ -21,6 +21,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
+  ChevronUp,
   Coins,
   TrendingUp,
   TrendingDown,
@@ -494,17 +495,20 @@ export default function AmbientDashboard() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft') setManualModal((prev) => (prev === 'oura' ? null : 'oura'));
-      if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
-        setManualModal((prev) => (prev === 'calendar' ? null : 'calendar'));
-      }
-      if (e.key === 'ArrowDown') {
-        setManualModal((prev) => (prev === 'reminders' ? null : 'reminders'));
-      }
-      if (e.key === 'm' || e.key === 'M') {
+      // Fire Stick D-Pad & Keyboard navigation:
+      // UP    -> ADHD Medication Protocol
+      // DOWN  -> Tasks & Reminders
+      // LEFT  -> Oura Biometrics & Sleep
+      // RIGHT -> Calendar Schedule
+      if (e.key === 'ArrowUp' || e.key === 'm' || e.key === 'M') {
         setManualModal((prev) => (prev === 'meds' ? null : 'meds'));
-      }
-      if (e.key === 'Enter' || e.key === 'Escape' || e.key === 'Backspace') {
+      } else if (e.key === 'ArrowDown' || e.key === 'r' || e.key === 'R') {
+        setManualModal((prev) => (prev === 'reminders' ? null : 'reminders'));
+      } else if (e.key === 'ArrowLeft' || e.key === 'o' || e.key === 'O') {
+        setManualModal((prev) => (prev === 'oura' ? null : 'oura'));
+      } else if (e.key === 'ArrowRight' || e.key === 'c' || e.key === 'C') {
+        setManualModal((prev) => (prev === 'calendar' ? null : 'calendar'));
+      } else if (e.key === 'Enter' || e.key === 'Escape' || e.key === 'Backspace') {
         if (isUpcomingModalOpen && upcomingEventKey) {
           setDismissedEventKey(upcomingEventKey);
         }
@@ -831,14 +835,14 @@ export default function AmbientDashboard() {
     return generateDayCurve(now, data.meds?.taken);
   }, [now, data.meds?.taken]);
 
-  // Sparkline coordinates for main medication card
+  // Sparkline coordinates for main medication card (enlarged to fill card)
   const medSparkline = useMemo(() => {
     if (!pkCurve || pkCurve.points.length === 0) return null;
-    const width = 340;
-    const height = 76;
+    const width = 360;
+    const height = 100;
     const padLeft = 8;
     const padRight = 8;
-    const padTop = 10;
+    const padTop = 14;
     const padBottom = 16;
     const graphW = width - padLeft - padRight;
     const graphH = height - padTop - padBottom;
@@ -874,7 +878,7 @@ export default function AmbientDashboard() {
         x: Number((padLeft + ((gh - pkCurve.startHour) / totalHours) * graphW).toFixed(1)),
       }));
 
-    return { curveD, areaD, nowX, nowY, gridHours, padTop, graphH };
+    return { curveD, areaD, nowX, nowY, nowConc: pkCurve.nowConc, gridHours, padTop, graphH };
   }, [pkCurve]);
 
   // Large modal concentration graph coordinates (width 920, height 210)
@@ -1784,13 +1788,13 @@ export default function AmbientDashboard() {
       {/* MAIN CONTENT GRID */}
       <div className="grid grid-cols-12 gap-6 flex-1 min-h-0">
         {/* LEFT COLUMN */}
-        <div className={`${leftColSpan} flex flex-col gap-6 min-h-0 transition-all duration-700`}>
+        <div className={`${leftColSpan} flex flex-col gap-3.5 min-h-0 transition-all duration-700`}>
           {/* 1. BIOMETRICS */}
           <GlassCard
             onClick={() => setManualModal('oura')}
-            className="flex flex-col justify-between shrink-0 !pb-6 relative"
+            className="flex flex-col justify-between shrink-0 !p-5 !pb-4 relative"
           >
-            <div className="absolute top-6 right-6 flex items-center gap-2.5">
+            <div className="absolute top-5 right-5 flex items-center gap-2.5">
               <div
                 title={
                   data.oura?.battery !== undefined && data.oura?.battery !== null
@@ -1828,15 +1832,15 @@ export default function AmbientDashboard() {
                 <ChevronLeft className="w-3 h-3" /> Press
               </div>
             </div>
-            <div className="flex items-center gap-2 mb-5">
+            <div className="flex items-center gap-2 mb-3">
               <Activity className="w-4 h-4 text-white/55" />
               <span className="font-semibold text-sm text-white/55 uppercase tracking-widest">
                 Biometrics
               </span>
             </div>
-            <div className="grid grid-cols-2 gap-y-6 gap-x-4 tabular-nums">
+            <div className="grid grid-cols-2 gap-y-3 gap-x-4 tabular-nums">
               <div>
-                <div className="flex items-center gap-1.5 text-sm font-medium text-white/55 mb-1">
+                <div className="flex items-center gap-1.5 text-sm font-medium text-white/55 mb-0.5">
                   <span>Readiness</span>
                   <span
                     className={`w-1.5 h-1.5 rounded-full ${getScoreDotColor(data.oura?.readiness)}`}
@@ -1845,7 +1849,7 @@ export default function AmbientDashboard() {
                 <div className="text-3xl font-light text-white">{data.oura?.readiness}</div>
               </div>
               <div>
-                <div className="flex items-center gap-1.5 text-sm font-medium text-white/55 mb-1">
+                <div className="flex items-center gap-1.5 text-sm font-medium text-white/55 mb-0.5">
                   <span>Sleep</span>
                   <span
                     className={`w-1.5 h-1.5 rounded-full ${getScoreDotColor(data.oura?.sleep)}`}
@@ -1854,11 +1858,11 @@ export default function AmbientDashboard() {
                 <div className="text-3xl font-light text-white">{data.oura?.sleep}</div>
               </div>
               <div>
-                <div className="text-sm font-medium text-white/55 mb-1">Steps</div>
+                <div className="text-sm font-medium text-white/55 mb-0.5">Steps</div>
                 <div className="text-3xl font-light text-white">{stepsFormatted}</div>
               </div>
               <div>
-                <div className="text-sm font-medium text-white/55 mb-1">Stress</div>
+                <div className="text-sm font-medium text-white/55 mb-0.5">Stress</div>
                 <div className="text-3xl font-light text-white">
                   {data.oura?.stress}
                   <span className="text-sm text-white/45 ml-0.5">m</span>
@@ -1870,7 +1874,7 @@ export default function AmbientDashboard() {
           {/* 2. 7-DAY SLEEP ARCHITECTURE (SMOOTH TELEMETRY LINE GRAPH) */}
           <GlassCard
             onClick={() => setManualModal('oura')}
-            className="flex flex-col flex-1 min-h-[195px] !p-5 relative overflow-hidden cursor-pointer group"
+            className="flex flex-col flex-1 min-h-[165px] !p-4.5 !py-3.5 relative overflow-hidden cursor-pointer group"
           >
             <div className="flex items-center justify-between mb-2 shrink-0">
               <div className="flex items-center gap-2">
@@ -2010,12 +2014,13 @@ export default function AmbientDashboard() {
           {/* 3. ADHD MEDICATION PROTOCOL (PHARMACOKINETICS) */}
           <GlassCard
             onClick={() => setManualModal('meds')}
-            className="flex flex-col shrink-0 !p-5 relative cursor-pointer hover:bg-white/[0.05] transition-all group"
+            className="flex flex-col flex-1 min-h-[185px] !p-4.5 !py-3.5 relative cursor-pointer hover:bg-white/[0.05] transition-all group"
           >
-            <div className="absolute top-5 right-5 flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.06] border border-white/10 text-white/50 text-[10px] font-medium uppercase tracking-wider">
-              Press M
+            <div className="absolute top-4 right-4 flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/[0.06] border border-white/10 text-white/60 text-[10px] font-medium uppercase tracking-wider">
+              <span>Press</span>
+              <ChevronUp className="w-3 h-3 text-sky-400 stroke-[2.5]" />
             </div>
-            <div className="flex items-center justify-between mb-3 shrink-0">
+            <div className="flex items-center justify-between mb-2 shrink-0">
               <div className="flex items-center gap-2">
                 <Pill className="w-4 h-4 text-sky-400" />
                 <span className="font-semibold text-sm text-white/60 uppercase tracking-widest">
@@ -2039,7 +2044,7 @@ export default function AmbientDashboard() {
             </div>
 
             {/* DOSES STATUS PILLS */}
-            <div className="flex items-center gap-1.5 mb-2 shrink-0 flex-wrap">
+            <div className="flex items-center gap-1.5 mb-1.5 shrink-0 flex-wrap">
               {pkStats?.doses.map((d) => (
                 <div
                   key={d.id}
@@ -2061,11 +2066,11 @@ export default function AmbientDashboard() {
 
             {/* MINI PK SPARKLINE GRAPH */}
             {medSparkline && (
-              <div className="w-full h-[64px] relative my-0.5 select-none">
-                <svg viewBox="0 0 340 76" className="w-full h-full overflow-visible">
+              <div className="w-full flex-1 min-h-[90px] max-h-[125px] relative my-1 select-none flex items-center">
+                <svg viewBox="0 0 360 100" className="w-full h-full min-h-[85px] overflow-visible">
                   <defs>
                     <linearGradient id="medAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.28" />
+                      <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.32" />
                       <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.0" />
                     </linearGradient>
                     <linearGradient id="medStrokeGrad" x1="0" y1="0" x2="1" y2="0">
@@ -2083,15 +2088,15 @@ export default function AmbientDashboard() {
                         y1={medSparkline.padTop}
                         x2={gh.x}
                         y2={medSparkline.padTop + medSparkline.graphH}
-                        stroke="rgba(255,255,255,0.06)"
+                        stroke="rgba(255,255,255,0.08)"
                         strokeDasharray="2 2"
                       />
                       <text
                         x={gh.x}
                         y={medSparkline.padTop + medSparkline.graphH + 11}
                         textAnchor="middle"
-                        fill="rgba(255,255,255,0.3)"
-                        fontSize="8.5"
+                        fill="rgba(255,255,255,0.35)"
+                        fontSize="9"
                         fontWeight="600"
                         className="font-mono tabular-nums"
                       >
@@ -2108,7 +2113,7 @@ export default function AmbientDashboard() {
                     d={medSparkline.curveD}
                     fill="none"
                     stroke="url(#medStrokeGrad)"
-                    strokeWidth="2.2"
+                    strokeWidth="2.8"
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   />
@@ -2121,14 +2126,14 @@ export default function AmbientDashboard() {
                         y1={medSparkline.padTop}
                         x2={medSparkline.nowX}
                         y2={medSparkline.padTop + medSparkline.graphH}
-                        stroke="rgba(255,255,255,0.4)"
-                        strokeWidth="1"
+                        stroke="rgba(255,255,255,0.45)"
+                        strokeWidth="1.2"
                         strokeDasharray="2 2"
                       />
                       <circle
                         cx={medSparkline.nowX}
                         cy={medSparkline.nowY}
-                        r="6"
+                        r="7"
                         fill="none"
                         stroke="#38bdf8"
                         strokeWidth="1.5"
@@ -2138,10 +2143,10 @@ export default function AmbientDashboard() {
                       <circle
                         cx={medSparkline.nowX}
                         cy={medSparkline.nowY}
-                        r="3.5"
+                        r="4"
                         fill="#ffffff"
                         stroke="#0b0f19"
-                        strokeWidth="1.5"
+                        strokeWidth="2"
                       />
                     </g>
                   )}
@@ -2150,7 +2155,7 @@ export default function AmbientDashboard() {
             )}
 
             {/* PK STATS FOOTER ROW */}
-            <div className="flex items-center justify-between text-[11px] text-white/50 pt-1 border-t border-white/[0.05] tabular-nums shrink-0">
+            <div className="flex items-center justify-between text-[11px] text-white/50 pt-1.5 border-t border-white/[0.05] tabular-nums shrink-0">
               <div className="flex items-center gap-1.5">
                 <span className="text-white/35">Peak</span>
                 <span className="text-white/85 font-medium">{pkStats?.peakTime || '--:--'}</span>
@@ -2168,48 +2173,48 @@ export default function AmbientDashboard() {
           </GlassCard>
 
           {/* 4. INBOXES */}
-          <GlassCard className="flex flex-col shrink-0">
-            <div className="flex items-center gap-2 mb-4 shrink-0">
-              <Mail className="w-4 h-4 text-white/55" />
-              <span className="font-semibold text-sm text-white/55 uppercase tracking-widest">
+          <GlassCard className="flex flex-col shrink-0 !p-4 !py-3">
+            <div className="flex items-center gap-2 mb-2 shrink-0">
+              <Mail className="w-3.5 h-3.5 text-white/55" />
+              <span className="font-semibold text-xs text-white/55 uppercase tracking-widest">
                 Inboxes
               </span>
             </div>
-            <div className="flex flex-col gap-4 tabular-nums">
+            <div className="flex flex-col gap-2 tabular-nums">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-rose-500/20 flex items-center justify-center shrink-0">
-                    <Mail className="w-4 h-4 text-rose-400" />
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-full bg-rose-500/20 flex items-center justify-center shrink-0">
+                    <Mail className="w-3.5 h-3.5 text-rose-400" />
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-white/95 font-medium leading-tight">Personal</span>
-                    <span className="text-white/50 text-xs">Gmail</span>
+                    <span className="text-white/95 font-medium text-sm leading-tight">Personal</span>
+                    <span className="text-white/50 text-[11px]">Gmail</span>
                   </div>
                 </div>
                 <div className="flex flex-col items-end">
-                  <span className="text-rose-400 font-medium leading-tight">
+                  <span className="text-rose-400 font-medium text-sm leading-tight">
                     {data.emails?.gmail?.unread || 0} Unread
                   </span>
-                  <span className="text-white/50 text-xs">
+                  <span className="text-white/50 text-[11px]">
                     {data.emails?.gmail?.total || 0} Total
                   </span>
                 </div>
               </div>
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center shrink-0">
-                    <GraduationCap className="w-4 h-4 text-purple-400" />
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-full bg-purple-500/20 flex items-center justify-center shrink-0">
+                    <GraduationCap className="w-3.5 h-3.5 text-purple-400" />
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-white/95 font-medium leading-tight">University</span>
-                    <span className="text-white/50 text-xs">Exchange</span>
+                    <span className="text-white/95 font-medium text-sm leading-tight">University</span>
+                    <span className="text-white/50 text-[11px]">Exchange</span>
                   </div>
                 </div>
                 <div className="flex flex-col items-end">
-                  <span className="text-purple-400 font-medium leading-tight">
+                  <span className="text-purple-400 font-medium text-sm leading-tight">
                     {data.emails?.uni?.unread || 0} Unread
                   </span>
-                  <span className="text-white/50 text-xs">
+                  <span className="text-white/50 text-[11px]">
                     {data.emails?.uni?.total || 0} Total
                   </span>
                 </div>
