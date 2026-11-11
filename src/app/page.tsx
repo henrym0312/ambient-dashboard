@@ -25,6 +25,7 @@ import {
   TrendingUp,
   TrendingDown,
   Battery,
+  Footprints,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -769,15 +770,15 @@ export default function AmbientDashboard() {
     return { avgHours, avgScore };
   }, [data.oura?.history]);
 
-  // Generate smooth SVG line telemetry curve and coordinates for 7-day sleep
+  // Generate smooth SVG line telemetry curve and coordinates for 7-day sleep (main view)
   const sleepGraphData = useMemo(() => {
     const hist = data.oura?.history || [];
     if (hist.length === 0) return null;
 
     const points = hist.map((d, i) => {
-      const x = 25 + i * 50; // 7 points evenly spaced from 25 to 325 across width 350
+      const x = 28 + i * 54; // 28, 82, 136, 190, 244, 298, 352 (width 380)
       const clampHours = Math.max(3.5, Math.min(9.5, d.hours || 3.5));
-      const y = 92 - ((clampHours - 3.5) / 6.0) * 62;
+      const y = 98 - ((clampHours - 3.5) / 6.0) * 62;
       const timeStr = formatSleepDuration(d.hours, d.formattedTime);
       return {
         x,
@@ -792,7 +793,37 @@ export default function AmbientDashboard() {
     const curveD = getSmoothCurvePath(points);
     const areaD =
       points.length > 0
-        ? `${curveD} L ${points[points.length - 1].x} 104 L ${points[0].x} 104 Z`
+        ? `${curveD} L ${points[points.length - 1].x} 110 L ${points[0].x} 110 Z`
+        : '';
+
+    return { points, curveD, areaD };
+  }, [data.oura?.history]);
+
+  // Large high-resolution sleep telemetry graph for the expanded Oura modal
+  const modalSleepGraphData = useMemo(() => {
+    const hist = data.oura?.history || [];
+    if (hist.length === 0) return null;
+
+    const points = hist.map((d, i) => {
+      const x = 70 + i * 130; // 70, 200, 330, 460, 590, 720, 850 (width 920)
+      const clampHours = Math.max(3.5, Math.min(9.5, d.hours || 3.5));
+      const y = 145 - ((clampHours - 3.5) / 6.0) * 95; // range from 50 to 145
+      const timeStr = formatSleepDuration(d.hours, d.formattedTime);
+      return {
+        x,
+        y: Number(y.toFixed(1)),
+        hours: d.hours,
+        timeStr,
+        label: d.label,
+        sleepScore: d.sleep,
+        isLatest: i === hist.length - 1,
+      };
+    });
+
+    const curveD = getSmoothCurvePath(points);
+    const areaD =
+      points.length > 0
+        ? `${curveD} L ${points[points.length - 1].x} 165 L ${points[0].x} 165 Z`
         : '';
 
     return { points, curveD, areaD };
@@ -947,36 +978,246 @@ export default function AmbientDashboard() {
           )}
 
           {activeModal === 'oura' && (
-            <div className="flex flex-col h-full items-center justify-center">
-              <Activity className="w-20 h-20 text-white/80 mb-8" />
-              <h2 className="text-5xl font-semibold text-white mb-16">Health Metrics</h2>
-              <div className="grid grid-cols-4 gap-8 text-center w-full max-w-5xl tabular-nums">
-                <div className="bg-white/[0.04] border border-white/[0.08] p-8 rounded-3xl">
-                  <div className="text-white/55 text-base mb-3 font-medium uppercase tracking-widest">
-                    Readiness
+            <div className="flex flex-col h-full justify-between p-2 max-w-6xl mx-auto w-full">
+              {/* MODAL HEADER */}
+              <div className="flex items-center justify-between pb-4 border-b border-white/10 shrink-0">
+                <div className="flex items-center gap-3">
+                  <Activity className="w-8 h-8 text-sky-400" />
+                  <div>
+                    <h2 className="text-3xl font-semibold text-white tracking-tight">
+                      Oura Health &amp; Sleep Telemetry
+                    </h2>
+                    <p className="text-white/50 text-sm">
+                      Real-time biometrics &amp; 7-day sleep architecture
+                    </p>
                   </div>
-                  <div className="text-6xl font-light text-white">{data.oura.readiness}</div>
                 </div>
-                <div className="bg-white/[0.04] border border-white/[0.08] p-8 rounded-3xl">
-                  <div className="text-white/55 text-base mb-3 font-medium uppercase tracking-widest">
-                    Sleep
-                  </div>
-                  <div className="text-6xl font-light text-white">{data.oura.sleep}</div>
+
+                <div className="flex items-center gap-3">
+                  {data.oura?.battery !== undefined && data.oura?.battery !== null && (
+                    <div
+                      className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-sm font-semibold tabular-nums ${
+                        data.oura.battery >= 40
+                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                          : data.oura.battery >= 20
+                            ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                            : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                      }`}
+                    >
+                      <Battery className="w-4 h-4" />
+                      <span>Ring Battery: {data.oura.battery}%</span>
+                    </div>
+                  )}
+
+                  {sleepStats.avgHours && (
+                    <div className="px-3.5 py-1.5 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-sm font-semibold tabular-nums">
+                      7d Avg: {sleepStats.avgHours}h
+                    </div>
+                  )}
                 </div>
-                <div className="bg-white/[0.04] border border-white/[0.08] p-8 rounded-3xl">
-                  <div className="text-white/55 text-base mb-3 font-medium uppercase tracking-widest">
-                    Steps
+              </div>
+
+              {/* 4 CORE METRICS ROW */}
+              <div className="grid grid-cols-4 gap-6 my-4 shrink-0 tabular-nums">
+                <div className="bg-white/[0.04] border border-white/[0.08] p-5 rounded-2xl flex flex-col justify-between">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-white/60 text-xs font-semibold uppercase tracking-widest">
+                      Readiness Score
+                    </span>
+                    <span
+                      className={`w-2.5 h-2.5 rounded-full ${getScoreDotColor(data.oura.readiness)}`}
+                    />
                   </div>
-                  <div className="text-6xl font-light text-white">{stepsFormatted}</div>
+                  <div className="text-5xl font-light text-white">{data.oura.readiness}</div>
                 </div>
-                <div className="bg-white/[0.04] border border-white/[0.08] p-8 rounded-3xl">
-                  <div className="text-white/55 text-base mb-3 font-medium uppercase tracking-widest">
-                    Stress
+
+                <div className="bg-white/[0.04] border border-white/[0.08] p-5 rounded-2xl flex flex-col justify-between">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-white/60 text-xs font-semibold uppercase tracking-widest">
+                      Sleep Score
+                    </span>
+                    <span
+                      className={`w-2.5 h-2.5 rounded-full ${getScoreDotColor(data.oura.sleep)}`}
+                    />
                   </div>
-                  <div className="text-6xl font-light text-white">
+                  <div className="text-5xl font-light text-white">{data.oura.sleep}</div>
+                </div>
+
+                <div className="bg-white/[0.04] border border-white/[0.08] p-5 rounded-2xl flex flex-col justify-between">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-white/60 text-xs font-semibold uppercase tracking-widest">
+                      Daily Steps
+                    </span>
+                    <Footprints className="w-4 h-4 text-emerald-400" />
+                  </div>
+                  <div className="text-5xl font-light text-white">{stepsFormatted}</div>
+                </div>
+
+                <div className="bg-white/[0.04] border border-white/[0.08] p-5 rounded-2xl flex flex-col justify-between">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-white/60 text-xs font-semibold uppercase tracking-widest">
+                      Daytime Stress
+                    </span>
+                    <Activity className="w-4 h-4 text-amber-400" />
+                  </div>
+                  <div className="text-5xl font-light text-white">
                     {data.oura.stress}
-                    <span className="text-3xl text-white/45 ml-1">m</span>
+                    <span className="text-2xl text-white/45 ml-1">m</span>
                   </div>
+                </div>
+              </div>
+
+              {/* EXPANDED 7-DAY SLEEP TREND GRAPH */}
+              <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-6 flex flex-col flex-1 min-h-0 relative">
+                <div className="flex items-center justify-between mb-2 shrink-0">
+                  <div className="flex items-center gap-2.5">
+                    <Moon className="w-5 h-5 text-indigo-400" />
+                    <span className="font-semibold text-base text-white/90 uppercase tracking-wider">
+                      7-Day Sleep Duration &amp; Architecture
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 tabular-nums">
+                    <span className="text-xs text-white/50">Target: 8h 00m</span>
+                    {sleepStats.avgScore && (
+                      <span className="px-2.5 py-1 rounded-md bg-white/[0.05] border border-white/10 text-white/70 text-xs font-medium">
+                        Avg Score: {sleepStats.avgScore}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* LARGE SVG GRAPH */}
+                <div className="flex-1 min-h-0 flex items-center justify-center relative w-full">
+                  {modalSleepGraphData && modalSleepGraphData.points.length > 0 ? (
+                    <svg
+                      viewBox="0 0 920 200"
+                      className="w-full h-full max-h-[220px] overflow-visible select-none"
+                    >
+                      <defs>
+                        <linearGradient id="modalSleepAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#818cf8" stopOpacity="0.38" />
+                          <stop offset="100%" stopColor="#818cf8" stopOpacity="0.0" />
+                        </linearGradient>
+                        <linearGradient id="modalSleepStrokeGrad" x1="0" y1="0" x2="1" y2="0">
+                          <stop offset="0%" stopColor="#6366f1" />
+                          <stop offset="50%" stopColor="#818cf8" />
+                          <stop offset="100%" stopColor="#38bdf8" />
+                        </linearGradient>
+                      </defs>
+
+                      {/* 8h Target Guideline */}
+                      <line
+                        x1="40"
+                        y1="74"
+                        x2="880"
+                        y2="74"
+                        stroke="rgba(255,255,255,0.15)"
+                        strokeDasharray="5 5"
+                      />
+                      <text
+                        x="886"
+                        y="78"
+                        fill="rgba(255,255,255,0.4)"
+                        fontSize="12"
+                        fontWeight="600"
+                        textAnchor="start"
+                        className="font-mono tabular-nums"
+                      >
+                        8h Target
+                      </text>
+
+                      {/* Area Fill */}
+                      <path d={modalSleepGraphData.areaD} fill="url(#modalSleepAreaGrad)" />
+
+                      {/* Curve Stroke */}
+                      <path
+                        d={modalSleepGraphData.curveD}
+                        fill="none"
+                        stroke="url(#modalSleepStrokeGrad)"
+                        strokeWidth="3.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+
+                      {/* Points */}
+                      {modalSleepGraphData.points.map((pt, i) => (
+                        <g key={i}>
+                          {/* Duration label above node: LARGE & CRYSTAL CLEAR */}
+                          <text
+                            x={pt.x}
+                            y={pt.y - 14}
+                            textAnchor="middle"
+                            fill={pt.isLatest ? '#38bdf8' : '#ffffff'}
+                            fontSize="17"
+                            fontWeight="700"
+                            className="tabular-nums font-mono drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]"
+                          >
+                            {pt.timeStr}
+                          </text>
+
+                          {/* Pulsing ring for latest / today */}
+                          {pt.isLatest && (
+                            <circle
+                              cx={pt.x}
+                              cy={pt.y}
+                              r="12"
+                              fill="none"
+                              stroke="#38bdf8"
+                              strokeWidth="2"
+                              opacity="0.6"
+                              className="animate-pulse"
+                            />
+                          )}
+
+                          {/* Node Dot */}
+                          <circle
+                            cx={pt.x}
+                            cy={pt.y}
+                            r={pt.isLatest ? 7 : 5.5}
+                            fill={pt.isLatest ? '#38bdf8' : '#818cf8'}
+                            stroke="#0b0f19"
+                            strokeWidth="3"
+                          />
+
+                          {/* Day Label */}
+                          <text
+                            x={pt.x}
+                            y="180"
+                            textAnchor="middle"
+                            fill={pt.isLatest ? '#38bdf8' : 'rgba(255,255,255,0.7)'}
+                            fontSize="15"
+                            fontWeight="700"
+                            className="uppercase tracking-wider font-sans"
+                          >
+                            {pt.label}
+                          </text>
+
+                          {/* Sleep Score under Day */}
+                          {pt.sleepScore > 0 && (
+                            <text
+                              x={pt.x}
+                              y="198"
+                              textAnchor="middle"
+                              fill={
+                                pt.sleepScore >= 80
+                                  ? '#34d399'
+                                  : pt.sleepScore >= 70
+                                    ? '#38bdf8'
+                                    : 'rgba(255,255,255,0.5)'
+                              }
+                              fontSize="12.5"
+                              fontWeight="600"
+                              className="tabular-nums"
+                            >
+                              {pt.sleepScore} score
+                            </text>
+                          )}
+                        </g>
+                      ))}
+                    </svg>
+                  ) : (
+                    <div className="text-sm text-white/40 m-auto">Syncing sleep telemetry...</div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1243,7 +1484,10 @@ export default function AmbientDashboard() {
           </GlassCard>
 
           {/* 2. 7-DAY SLEEP ARCHITECTURE (SMOOTH TELEMETRY LINE GRAPH) */}
-          <GlassCard className="flex flex-col flex-1 min-h-0 !p-5 relative overflow-hidden">
+          <GlassCard
+            onClick={() => setManualModal('oura')}
+            className="flex flex-col flex-1 min-h-[195px] !p-5 relative overflow-hidden cursor-pointer group"
+          >
             <div className="flex items-center justify-between mb-2 shrink-0">
               <div className="flex items-center gap-2">
                 <Moon className="w-4 h-4 text-indigo-400" />
@@ -1269,8 +1513,8 @@ export default function AmbientDashboard() {
             <div className="flex-1 min-h-0 flex items-center justify-center relative">
               {sleepGraphData && sleepGraphData.points.length > 0 ? (
                 <svg
-                  viewBox="0 0 350 134"
-                  className="w-full h-full max-h-[145px] overflow-visible select-none"
+                  viewBox="0 0 380 148"
+                  className="w-full h-full min-h-[145px] overflow-visible select-none"
                 >
                   <defs>
                     <linearGradient id="sleepAreaGrad" x1="0" y1="0" x2="0" y2="1">
@@ -1286,18 +1530,19 @@ export default function AmbientDashboard() {
 
                   {/* 8h Target Guideline */}
                   <line
-                    x1="20"
-                    y1="45.5"
-                    x2="330"
-                    y2="45.5"
-                    stroke="rgba(255,255,255,0.08)"
+                    x1="18"
+                    y1="51.5"
+                    x2="356"
+                    y2="51.5"
+                    stroke="rgba(255,255,255,0.12)"
                     strokeDasharray="3 3"
                   />
                   <text
-                    x="332"
-                    y="48.5"
-                    fill="rgba(255,255,255,0.25)"
-                    fontSize="9"
+                    x="358"
+                    y="54.5"
+                    fill="rgba(255,255,255,0.35)"
+                    fontSize="9.5"
+                    fontWeight="600"
                     textAnchor="start"
                     className="font-mono tabular-nums"
                   >
@@ -1312,7 +1557,7 @@ export default function AmbientDashboard() {
                     d={sleepGraphData.curveD}
                     fill="none"
                     stroke="url(#sleepStrokeGrad)"
-                    strokeWidth="2.5"
+                    strokeWidth="3"
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   />
@@ -1320,15 +1565,15 @@ export default function AmbientDashboard() {
                   {/* Day Nodes & Labels */}
                   {sleepGraphData.points.map((pt, i) => (
                     <g key={i}>
-                      {/* Exact time label directly above node (e.g. 4h 30m, 6h 51m) */}
+                      {/* Exact time label directly above node (e.g. 4h 30m, 6h 51m) - LARGE & BOLD */}
                       <text
                         x={pt.x}
-                        y={pt.y - 10}
+                        y={pt.y - 11}
                         textAnchor="middle"
-                        fill={pt.isLatest ? '#38bdf8' : 'rgba(255,255,255,0.85)'}
-                        fontSize="10"
-                        fontWeight="600"
-                        className="tabular-nums font-mono drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]"
+                        fill={pt.isLatest ? '#38bdf8' : '#ffffff'}
+                        fontSize="12.5"
+                        fontWeight="700"
+                        className="tabular-nums font-mono drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]"
                       >
                         {pt.timeStr}
                       </text>
@@ -1338,7 +1583,7 @@ export default function AmbientDashboard() {
                         <circle
                           cx={pt.x}
                           cy={pt.y}
-                          r="7"
+                          r="9"
                           fill="none"
                           stroke="#38bdf8"
                           strokeWidth="1.5"
@@ -1351,20 +1596,20 @@ export default function AmbientDashboard() {
                       <circle
                         cx={pt.x}
                         cy={pt.y}
-                        r={pt.isLatest ? 4.5 : 3.5}
+                        r={pt.isLatest ? 5.5 : 4}
                         fill={pt.isLatest ? '#38bdf8' : '#818cf8'}
                         stroke="#0b0f19"
-                        strokeWidth="2"
+                        strokeWidth="2.5"
                       />
 
                       {/* Day of week below */}
                       <text
                         x={pt.x}
-                        y="124"
+                        y="134"
                         textAnchor="middle"
-                        fill={pt.isLatest ? '#38bdf8' : 'rgba(255,255,255,0.45)'}
-                        fontSize="11"
-                        fontWeight="600"
+                        fill={pt.isLatest ? '#38bdf8' : 'rgba(255,255,255,0.65)'}
+                        fontSize="12.5"
+                        fontWeight="700"
                         className="uppercase tracking-wider font-sans"
                       >
                         {pt.label}
