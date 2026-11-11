@@ -29,7 +29,25 @@ interface OuraMetrics {
   sleep: number | string;
   steps: number | string;
   stress: string;
+  battery?: number | null;
   history: OuraHistoryDay[];
+}
+
+export interface GoldData {
+  paxgUsdt: number;
+  gbpUsdt: number;
+  gramPriceGbp: number;
+  currentValue: number;
+  purchasePrice: number;
+  profitGbp: number;
+  profitPct: number;
+  isProfit: boolean;
+}
+
+interface OuraBatteryItem {
+  id?: string;
+  battery_level?: number | null;
+  timestamp?: string;
 }
 
 interface OuraTokenData {
@@ -75,6 +93,7 @@ interface DashboardSnapshot {
   oura: OuraMetrics;
   events: CalendarEventItem[];
   news: string[];
+  gold: GoldData;
   updatedAt: string;
 }
 
@@ -275,7 +294,7 @@ export async function GET() {
         'User-Agent': 'AmbientDashboard/1.0',
       };
 
-      const [readinessRes, sleepRes, activityRes, stressRes, sleepPeriodsRes] = await Promise.all([
+      const [readinessRes, sleepRes, activityRes, stressRes, sleepPeriodsRes, batteryRes] = await Promise.all([
         fetch(
           `https://api.ouraring.com/v2/usercollection/daily_readiness?start_date=${startDate}&end_date=${endDate}`,
           { headers, signal: AbortSignal.timeout(5500) }
@@ -296,6 +315,10 @@ export async function GET() {
           `https://api.ouraring.com/v2/usercollection/sleep?start_date=${startDate}&end_date=${endDate}`,
           { headers, signal: AbortSignal.timeout(5500) }
         ),
+        fetch(
+          `https://api.ouraring.com/v2/usercollection/ring_battery_level?start_datetime=${startDate}T00:00:00Z&end_datetime=${endDate}T23:59:59Z`,
+          { headers, signal: AbortSignal.timeout(5500) }
+        ).catch(() => null),
       ]);
 
       const readinessData: OuraDailyScoreItem[] = readinessRes.ok
@@ -313,6 +336,17 @@ export async function GET() {
       const sleepPeriodsData: OuraSleepPeriodItem[] = sleepPeriodsRes.ok
         ? (await sleepPeriodsRes.json()).data || []
         : [];
+
+      let ringBattery: number | null = null;
+      if (batteryRes && batteryRes.ok) {
+        try {
+          const batteryJson = await batteryRes.json();
+          const batteryItems: OuraBatteryItem[] = batteryJson.data || [];
+          ringBattery = findLatestValue(batteryItems, (d) => d.battery_level);
+        } catch {
+          // ignore error
+        }
+      }
 
       const readinessScore = findLatestValue(readinessData, (d) => d.score);
       const sleepScore = findLatestValue(sleepData, (d) => d.score);
@@ -358,6 +392,7 @@ export async function GET() {
         steps: stepsCount ?? fallbackOura.steps,
         stress:
           stressHigh !== null ? Math.round(stressHigh / 60).toString() : fallbackOura.stress,
+        battery: ringBattery ?? fallbackOura.battery ?? null,
         history: Object.values(dayMap),
       };
     } catch (e) {
@@ -399,11 +434,101 @@ export async function GET() {
     return lastGood.news ?? [];
   })();
 
-  const [weather, oura, events, news] = await Promise.all([
+  // 5. Half Sovereign Live Gold Tracker (PAXGUSDT / GBPUSDT -> 3.66g pure 22k gold)
+  const goldTask = (async (): Promise<GoldData> => {
+    const fallbackGold: GoldData = lastGood.gold ?? {
+      paxgUsdt: 2750,
+      gbpUsdt: 1.30,
+      gramPriceGbp: 68.1,
+      currentValue: 352.85,
+      purchasePrice: 385.0,
+      profitGbp: -32.15,
+      profitPct: -8.35,
+      isProfit: false,
+    };
+
+    try {
+      const [paxgRes, gbpRes] = await Promise.all([
+        fetch('https://api.binance.com/api/v3/ticker/price?symbol=PAXGUSDT', {
+          signal: AbortSignal.timeout(4500),
+        }),
+        fetch('https://api.binance.com/api/v3/ticker/price?symbol=GBPUSDT', {
+          signal: AbortSignal.timeout(4500),
+        }),
+      ]);
+
+      let paxgUsdt = 0;
+      let gbpUsdt = 0;
+
+      if (paxgRes.ok) {
+        const paxgData = (await paxgRes.json()) as { price?: string };
+        paxgUsdt = parseFloat(paxgData.price || '0');
+      }
+
+      if (gbpRes.ok) {
+        const gbpData = (await gbpRes.json()) as { price?: string };
+        gbpUsdt = parseFloat(gbpData.price || '0');
+      }
+
+      // If GBPUSDT is not available from Binance, fall back to open exchangerate or default
+      if (!gbpUsdt || gbpUsdt <= 0) {
+        try {
+          const fxRes = await fetch('https://open.er-api.com/v6/latest/USD', {
+            signal: AbortSignal.timeout(3000),
+          });
+          if (fxRes.ok) {
+            const fxData = await fxRes.json();
+            const usdToGbp = fxData?.rates?.GBP;
+            if (usdToGbp && usdToGbp > 0) {
+              gbpUsdt = 1 / usdToGbp;
+            }
+          }
+        } catch {
+          // ignore error
+        }
+      }
+
+      if (!gbpUsdt || gbpUsdt <= 0) {
+        gbpUsdt = fallbackGold.gbpUsdt || 1.30;
+      }
+
+      if (paxgUsdt > 0 && gbpUsdt > 0) {
+        // Price per troy ounce in GBP = paxgUsdt / gbpUsdt
+        const ozPriceGbp = paxgUsdt / gbpUsdt;
+        // Gram price in GBP (1 troy oz = 31.1034768 grams)
+        const gramPriceGbp = Number((ozPriceGbp / 31.1034768).toFixed(2));
+        // Half Sovereign contains 3.66g pure 22k gold (gross 3.99g * 22/24)
+        const HALF_SOVEREIGN_FINE_GRAMS = 3.66;
+        const currentValue = Number((gramPriceGbp * HALF_SOVEREIGN_FINE_GRAMS).toFixed(2));
+        const purchasePrice = 385.0;
+        const profitGbp = Number((currentValue - purchasePrice).toFixed(2));
+        const profitPct = Number((((currentValue - purchasePrice) / purchasePrice) * 100).toFixed(2));
+        const isProfit = profitGbp >= 0;
+
+        return {
+          paxgUsdt,
+          gbpUsdt,
+          gramPriceGbp,
+          currentValue,
+          purchasePrice,
+          profitGbp,
+          profitPct,
+          isProfit,
+        };
+      }
+    } catch (e) {
+      console.error('Gold fetch failed:', e);
+    }
+
+    return fallbackGold;
+  })();
+
+  const [weather, oura, events, news, gold] = await Promise.all([
     weatherTask,
     ouraTask,
     calendarTask,
     newsTask,
+    goldTask,
   ]);
 
   const payload: DashboardSnapshot = {
@@ -411,6 +536,7 @@ export async function GET() {
     oura,
     events,
     news,
+    gold,
     updatedAt: new Date().toISOString(),
   };
 

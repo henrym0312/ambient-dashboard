@@ -1,3 +1,4 @@
+import AppKit
 import CryptoKit
 import EventKit
 import Foundation
@@ -10,6 +11,16 @@ struct ReminderPayload: Codable {
   let priority: Int
   let list: String
   let notes: String?
+}
+
+struct EmailBoxPayload: Codable {
+  let total: Int
+  let unread: Int
+}
+
+struct EmailsPayload: Codable {
+  let gmail: EmailBoxPayload
+  let uni: EmailBoxPayload
 }
 
 struct SyncState: Codable {
@@ -42,6 +53,101 @@ func sha256Hex(_ data: Data) -> String {
   return digest.map { String(format: "%02x", $0) }.joined()
 }
 
+func postJSON(url: URL, secret: String, body: Data) -> (ok: Bool, status: Int, response: String) {
+  var request = URLRequest(url: url)
+  request.httpMethod = "POST"
+  request.timeoutInterval = 12
+  request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+  request.setValue("Bearer \(secret)", forHTTPHeaderField: "Authorization")
+  request.httpBody = body
+
+  let sem = DispatchSemaphore(value: 0)
+  nonisolated(unsafe) var statusCode = 0
+  nonisolated(unsafe) var netError: Error?
+  nonisolated(unsafe) var responseBody = ""
+
+  let task = URLSession.shared.dataTask(with: request) { data, response, error in
+    netError = error
+    if let httpResp = response as? HTTPURLResponse {
+      statusCode = httpResp.statusCode
+    }
+    if let data = data, let text = String(data: data, encoding: .utf8) {
+      responseBody = text
+    }
+    sem.signal()
+  }
+  task.resume()
+  sem.wait()
+
+  if let netError = netError {
+    return (false, statusCode, netError.localizedDescription)
+  }
+  return ((200...299).contains(statusCode), statusCode, responseBody)
+}
+
+func fetchAppleMailCountsIfRunning() -> EmailsPayload? {
+  // Only query Mail if Mail.app is already running so we never pop open Mail.app when closed
+  let isMailRunning = NSWorkspace.shared.runningApplications.contains {
+    $0.bundleIdentifier == "com.apple.mail"
+  }
+  guard isMailRunning else { return nil }
+
+  let scriptSource = """
+    tell application "Mail"
+      set gTot to count of messages of mailbox "INBOX" of account "Henry - Gmail"
+      set gUnr to unread count of mailbox "INBOX" of account "Henry - Gmail"
+      set globalTot to count of messages of inbox
+      set globalUnr to unread count of inbox
+      set uTot to globalTot - gTot
+      set uUnr to globalUnr - gUnr
+      if uTot < 0 then set uTot to 0
+      if uUnr < 0 then set uUnr to 0
+      return (gTot as string) & "," & (gUnr as string) & "," & (uTot as string) & "," & (uUnr as string)
+    end tell
+    """
+
+  let proc = Process()
+  proc.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+  proc.arguments = ["-e", scriptSource]
+  let outPipe = Pipe()
+  proc.standardOutput = outPipe
+  proc.standardError = Pipe()
+
+  do {
+    try proc.run()
+  } catch {
+    return nil
+  }
+
+  // Enforce a 4-second timeout so osascript can never hang the daemon
+  let deadline = Date().addingTimeInterval(4.0)
+  while proc.isRunning && Date() < deadline {
+    Thread.sleep(forTimeInterval: 0.05)
+  }
+  if proc.isRunning {
+    proc.terminate()
+    return nil
+  }
+
+  guard proc.terminationStatus == 0 else { return nil }
+  let outData = outPipe.fileHandleForReading.readDataToEndOfFile()
+  guard
+    let raw = String(data: outData, encoding: .utf8)?.trimmingCharacters(
+      in: .whitespacesAndNewlines
+    )
+  else {
+    return nil
+  }
+
+  let parts = raw.split(separator: ",").compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
+  guard parts.count == 4 else { return nil }
+
+  return EmailsPayload(
+    gmail: EmailBoxPayload(total: parts[0], unread: parts[1]),
+    uni: EmailBoxPayload(total: parts[2], unread: parts[3])
+  )
+}
+
 let args = Set(CommandLine.arguments.dropFirst())
 let isDryRun = args.contains("--dry-run")
 let isForce = args.contains("--force")
@@ -60,6 +166,7 @@ let rawUrl =
 
 let cronSecret = procEnv["CRON_SECRET"] ?? fileEnv["CRON_SECRET"] ?? ""
 
+// 1. Fetch Incomplete Reminders natively via EventKit (~15ms)
 let store = EKEventStore()
 let accessSemaphore = DispatchSemaphore(value: 0)
 nonisolated(unsafe) var accessGranted = false
@@ -82,7 +189,10 @@ accessSemaphore.wait()
 
 guard accessGranted else {
   let errMsg = accessError?.localizedDescription ?? "Reminders permission denied"
-  fputs("Error: \(errMsg). Grant Reminders access in System Settings > Privacy & Security > Reminders.\n", stderr)
+  fputs(
+    "Error: \(errMsg). Grant Reminders access in System Settings > Privacy & Security > Reminders.\n",
+    stderr
+  )
   exit(1)
 }
 
@@ -145,13 +255,13 @@ payloads.sort { a, b in
 
 let encoder = JSONEncoder()
 encoder.outputFormatting = [.sortedKeys]
-guard let jsonData = try? encoder.encode(payloads) else {
+guard let remindersJson = try? encoder.encode(payloads) else {
   fputs("Error: Failed to encode reminders payload\n", stderr)
   exit(1)
 }
 
 if isDryRun {
-  if let prettyStr = String(data: jsonData, encoding: .utf8) {
+  if let prettyStr = String(data: remindersJson, encoding: .utf8) {
     print(prettyStr)
   }
   exit(0)
@@ -165,77 +275,76 @@ guard !rawUrl.isEmpty, !cronSecret.isEmpty else {
   exit(1)
 }
 
-let endpointStr: String = {
-  let trimmed = rawUrl.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-  if trimmed.hasSuffix("/api/reminders") {
-    return trimmed
-  }
-  return "\(trimmed)/api/reminders"
-}()
-
-guard let endpointUrl = URL(string: endpointStr) else {
-  fputs("Error: Invalid endpoint URL \(endpointStr)\n", stderr)
-  exit(1)
+var baseUrl = rawUrl.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+if baseUrl.hasSuffix("/api/reminders") {
+  baseUrl = String(baseUrl.dropLast("/api/reminders".count))
 }
 
-let currentHash = sha256Hex(jsonData)
 let cacheDir = "\(homeDir)/.cache/ambient-dashboard"
-let stateFile = "\(cacheDir)/reminders-state.json"
-let nowEpoch = Date().timeIntervalSince1970
-
-if !isForce,
-  let stateData = try? Data(contentsOf: URL(fileURLWithPath: stateFile)),
-  let prevState = try? JSONDecoder().decode(SyncState.self, from: stateData)
-{
-  // Skip redundant push if payload hasn't changed and we pushed within the last 30 minutes
-  if prevState.sha256 == currentHash && (nowEpoch - prevState.pushedAt) < 1800 {
-    exit(0)
-  }
-}
-
-var request = URLRequest(url: endpointUrl)
-request.httpMethod = "POST"
-request.timeoutInterval = 12
-request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-request.setValue("Bearer \(cronSecret)", forHTTPHeaderField: "Authorization")
-request.httpBody = jsonData
-
-let netSemaphore = DispatchSemaphore(value: 0)
-nonisolated(unsafe) var statusCode = 0
-nonisolated(unsafe) var netError: Error?
-nonisolated(unsafe) var responseBody = ""
-
-let task = URLSession.shared.dataTask(with: request) { data, response, error in
-  netError = error
-  if let httpResp = response as? HTTPURLResponse {
-    statusCode = httpResp.statusCode
-  }
-  if let data = data, let body = String(data: data, encoding: .utf8) {
-    responseBody = body
-  }
-  netSemaphore.signal()
-}
-task.resume()
-netSemaphore.wait()
-
-if let netError = netError {
-  fputs("Error pushing reminders: \(netError.localizedDescription)\n", stderr)
-  exit(1)
-}
-
-guard (200...299).contains(statusCode) else {
-  fputs("Error pushing reminders: HTTP \(statusCode) - \(responseBody)\n", stderr)
-  exit(1)
-}
-
 try? FileManager.default.createDirectory(
   atPath: cacheDir,
   withIntermediateDirectories: true,
   attributes: nil
 )
-let newState = SyncState(sha256: currentHash, pushedAt: nowEpoch)
-if let encodedState = try? JSONEncoder().encode(newState) {
-  try? encodedState.write(to: URL(fileURLWithPath: stateFile))
+let nowEpoch = Date().timeIntervalSince1970
+
+// 2. Push Reminders if changed (or every 30m heartbeat)
+if let remUrl = URL(string: "\(baseUrl)/api/reminders") {
+  let remHash = sha256Hex(remindersJson)
+  let remStateFile = "\(cacheDir)/reminders-state.json"
+  var shouldPushReminders = true
+
+  if !isForce,
+    let stateData = try? Data(contentsOf: URL(fileURLWithPath: remStateFile)),
+    let prevState = try? JSONDecoder().decode(SyncState.self, from: stateData),
+    prevState.sha256 == remHash && (nowEpoch - prevState.pushedAt) < 1800
+  {
+    shouldPushReminders = false
+  }
+
+  if shouldPushReminders {
+    let res = postJSON(url: remUrl, secret: cronSecret, body: remindersJson)
+    if res.ok {
+      let newState = SyncState(sha256: remHash, pushedAt: nowEpoch)
+      if let encoded = try? JSONEncoder().encode(newState) {
+        try? encoded.write(to: URL(fileURLWithPath: remStateFile))
+      }
+      print("Synced \(payloads.count) active reminders -> \(remUrl.absoluteString)")
+    } else {
+      fputs("Error pushing reminders: HTTP \(res.status) - \(res.response)\n", stderr)
+    }
+  }
 }
 
-print("Synced \(payloads.count) active reminders -> \(endpointStr)")
+// 3. Push Apple Mail counts if Mail.app is running and counts changed
+if let emailsPayload = fetchAppleMailCountsIfRunning(),
+  let emailsJson = try? encoder.encode(emailsPayload),
+  let emailUrl = URL(string: "\(baseUrl)/api/emails")
+{
+  let emailHash = sha256Hex(emailsJson)
+  let emailStateFile = "\(cacheDir)/emails-state.json"
+  var shouldPushEmails = true
+
+  if !isForce,
+    let stateData = try? Data(contentsOf: URL(fileURLWithPath: emailStateFile)),
+    let prevState = try? JSONDecoder().decode(SyncState.self, from: stateData),
+    prevState.sha256 == emailHash && (nowEpoch - prevState.pushedAt) < 1800
+  {
+    shouldPushEmails = false
+  }
+
+  if shouldPushEmails {
+    let res = postJSON(url: emailUrl, secret: cronSecret, body: emailsJson)
+    if res.ok {
+      let newState = SyncState(sha256: emailHash, pushedAt: nowEpoch)
+      if let encoded = try? JSONEncoder().encode(newState) {
+        try? encoded.write(to: URL(fileURLWithPath: emailStateFile))
+      }
+      print(
+        "Synced emails (Gmail: \(emailsPayload.gmail.unread)/\(emailsPayload.gmail.total), Uni: \(emailsPayload.uni.unread)/\(emailsPayload.uni.total)) -> \(emailUrl.absoluteString)"
+      )
+    } else {
+      fputs("Error pushing emails: HTTP \(res.status) - \(res.response)\n", stderr)
+    }
+  }
+}

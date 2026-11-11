@@ -21,6 +21,10 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
+  Coins,
+  TrendingUp,
+  TrendingDown,
+  Battery,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -32,6 +36,17 @@ interface WeatherData {
   aqi: number | string;
   weatherCode?: number;
   isDay?: number;
+}
+
+interface GoldData {
+  paxgUsdt: number;
+  gbpUsdt: number;
+  gramPriceGbp: number;
+  currentValue: number;
+  purchasePrice: number;
+  profitGbp: number;
+  profitPct: number;
+  isProfit: boolean;
 }
 
 interface OuraHistoryItem {
@@ -47,6 +62,7 @@ interface OuraData {
   sleep: number | string;
   steps: number | string;
   stress: string;
+  battery?: number | null;
   history: OuraHistoryItem[];
 }
 
@@ -94,6 +110,7 @@ interface DashboardState {
   news: string[];
   reminders: ReminderItem[];
   emails: EmailsData;
+  gold: GoldData;
   updatedAt?: string;
 }
 
@@ -246,11 +263,21 @@ export default function AmbientDashboard() {
 
   const [data, setData] = useState<DashboardState>({
     weather: { temp: '--', precipitation: 0, aqi: '--', weatherCode: 0, isDay: 1 },
-    oura: { readiness: '--', sleep: '--', steps: '--', stress: '--', history: [] },
+    oura: { readiness: '--', sleep: '--', steps: '--', stress: '--', battery: null, history: [] },
     events: [],
     news: [],
     reminders: [],
     emails: { gmail: { unread: 0, total: 0 }, uni: { unread: 0, total: 0 } },
+    gold: {
+      paxgUsdt: 0,
+      gbpUsdt: 1.3,
+      gramPriceGbp: 0,
+      currentValue: 0,
+      purchasePrice: 385,
+      profitGbp: 0,
+      profitPct: 0,
+      isProfit: false,
+    },
   });
 
   useEffect(() => {
@@ -287,6 +314,9 @@ export default function AmbientDashboard() {
           }
           if (Array.isArray(dashJson.news) && dashJson.news.length > 0) {
             updates.news = dashJson.news;
+          }
+          if (dashJson.gold) {
+            updates.gold = dashJson.gold;
           }
           if (dashJson.updatedAt) {
             updates.updatedAt = dashJson.updatedAt;
@@ -386,13 +416,6 @@ export default function AmbientDashboard() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isUpcomingModalOpen, upcomingEventKey]);
-
-  const getCountdown = (targetIso: string) => {
-    if (!now) return '--d';
-    const diff = new Date(targetIso).getTime() - now.getTime();
-    if (diff <= 0) return '0d';
-    return `${Math.floor(diff / 86400000)}d`;
-  };
 
   const getRelativeTime = (startStr: string, endStr?: string) => {
     if (!now) return '';
@@ -629,13 +652,12 @@ export default function AmbientDashboard() {
       return (a.item.title || a.item.text || '').localeCompare(b.item.title || b.item.text || '');
     });
 
-    // If there are overdue or today items, show all of them plus top priority/undated items up to 8;
-    // otherwise show up to 8 undated/upcoming tasks so the card never looks empty when tasks exist.
+    // Two-column layout allows showing up to 16 tasks clearly
     const urgent = scored.filter((s) => s.meta.isOverdue || s.meta.isToday);
-    if (urgent.length >= 6) {
-      return urgent.map((s) => s.item);
+    if (urgent.length >= 12) {
+      return urgent.slice(0, 16).map((s) => s.item);
     }
-    return scored.slice(0, 8).map((s) => s.item);
+    return scored.slice(0, 16).map((s) => s.item);
   }, [data.reminders, getReminderDueMeta]);
 
   // Check if nextEvent is currently active and calculate progress
@@ -919,8 +941,9 @@ export default function AmbientDashboard() {
           )}
         </GlassCard>
 
-        <div className="col-span-6 grid grid-cols-4 gap-5 h-full">
-          <GlassCard className="!p-4 flex flex-col justify-between items-center text-center">
+        {/* TOP RIGHT: WEATHER & HALF SOVEREIGN GOLD TRACKER */}
+        <div className="col-span-6 grid grid-cols-12 gap-5 h-full">
+          <GlassCard className="col-span-4 !p-4 flex flex-col justify-between items-center text-center">
             <span className="text-xs font-semibold uppercase tracking-widest text-white/55">
               Weather
             </span>
@@ -934,32 +957,63 @@ export default function AmbientDashboard() {
                 : `AQI ${data.weather?.aqi ?? '--'}`}
             </div>
           </GlassCard>
-          <GlassCard className="!p-4 flex flex-col justify-between items-center text-center">
-            <span className="text-xs font-semibold uppercase tracking-widest text-white/55">
-              Birthday
-            </span>
-            <span className="text-3xl font-light tabular-nums text-white/95">
-              {getCountdown('2026-12-03T00:00:00')}
-            </span>
-            <span className="text-[11px] font-medium text-white/45">3 Dec</span>
-          </GlassCard>
-          <GlassCard className="!p-4 flex flex-col justify-between items-center text-center">
-            <span className="text-xs font-semibold uppercase tracking-widest text-white/55">
-              Xmas
-            </span>
-            <span className="text-3xl font-light tabular-nums text-white/95">
-              {getCountdown('2026-12-09T17:00:00')}
-            </span>
-            <span className="text-[11px] font-medium text-white/45">9 Dec</span>
-          </GlassCard>
-          <GlassCard className="!p-4 flex flex-col justify-between items-center text-center">
-            <span className="text-xs font-semibold uppercase tracking-widest text-white/55">
-              Uni End
-            </span>
-            <span className="text-3xl font-light tabular-nums text-white/95">
-              {getCountdown('2027-03-19T17:00:00')}
-            </span>
-            <span className="text-[11px] font-medium text-white/45">19 Mar</span>
+
+          <GlassCard className="col-span-8 !p-4 flex flex-col justify-between relative overflow-hidden">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Coins className="w-3.5 h-3.5 text-amber-400" />
+                <span className="text-xs font-semibold uppercase tracking-widest text-amber-300/90">
+                  ½ Sovereign Gold
+                </span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-400/10 border border-amber-400/20 text-amber-300/75 font-mono">
+                  3.66g 22k
+                </span>
+              </div>
+              <span className="text-[11px] font-medium text-white/45 tabular-nums">
+                Cost: £{data.gold?.purchasePrice ? data.gold.purchasePrice.toFixed(2) : '385.00'}
+              </span>
+            </div>
+
+            <div className="flex items-baseline justify-between gap-3 my-0.5 tabular-nums">
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-light text-white tracking-tight">
+                  {data.gold?.currentValue ? `£${data.gold.currentValue.toFixed(2)}` : '£--'}
+                </span>
+                <span className="text-xs text-white/45 font-medium">
+                  {data.gold?.gramPriceGbp ? `£${data.gold.gramPriceGbp.toFixed(2)}/g` : ''}
+                </span>
+              </div>
+
+              {/* Profit / Loss Badge */}
+              {data.gold && data.gold.currentValue > 0 ? (
+                <div
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold tabular-nums border ${
+                    data.gold.isProfit
+                      ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
+                      : 'bg-rose-500/15 border-rose-500/30 text-rose-300'
+                  }`}
+                >
+                  {data.gold.isProfit ? (
+                    <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+                  ) : (
+                    <TrendingDown className="w-3.5 h-3.5 text-rose-400" />
+                  )}
+                  <span>
+                    {data.gold.isProfit ? '+' : ''}£{Math.abs(data.gold.profitGbp).toFixed(2)}
+                  </span>
+                  <span className="opacity-75">
+                    ({data.gold.isProfit ? '+' : ''}{data.gold.profitPct.toFixed(2)}%)
+                  </span>
+                </div>
+              ) : (
+                <span className="text-xs text-white/40">Syncing PAXG...</span>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between text-[11px] text-white/40 tabular-nums">
+              <span>PAXG ${data.gold?.paxgUsdt ? data.gold.paxgUsdt.toFixed(0) : '--'}</span>
+              <span>USD/GBP {data.gold?.gbpUsdt ? data.gold.gbpUsdt.toFixed(3) : '--'}</span>
+            </div>
           </GlassCard>
         </div>
       </header>
@@ -968,12 +1022,29 @@ export default function AmbientDashboard() {
       <div className="grid grid-cols-12 gap-6 flex-1 min-h-0">
         {/* LEFT COLUMN */}
         <div className={`${leftColSpan} flex flex-col gap-6 min-h-0 transition-all duration-700`}>
+          {/* 1. BIOMETRICS */}
           <GlassCard
             onClick={() => setManualModal('oura')}
             className="flex flex-col justify-between shrink-0 !pb-6 relative"
           >
-            <div className="absolute top-6 right-6 flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-white/[0.06] border border-white/10 text-white/55 text-[11px] font-medium uppercase tracking-widest">
-              <ChevronLeft className="w-3 h-3" /> Press
+            <div className="absolute top-6 right-6 flex items-center gap-2.5">
+              {data.oura?.battery !== undefined && data.oura?.battery !== null && (
+                <div
+                  className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[11px] font-medium tabular-nums ${
+                    data.oura.battery >= 40
+                      ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-300'
+                      : data.oura.battery >= 20
+                        ? 'bg-amber-500/10 border-amber-500/25 text-amber-300'
+                        : 'bg-rose-500/10 border-rose-500/25 text-rose-300'
+                  }`}
+                >
+                  <Battery className="w-3.5 h-3.5" />
+                  <span>{data.oura.battery}%</span>
+                </div>
+              )}
+              <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-white/[0.06] border border-white/10 text-white/55 text-[11px] font-medium uppercase tracking-widest">
+                <ChevronLeft className="w-3 h-3" /> Press
+              </div>
             </div>
             <div className="flex items-center gap-2 mb-5">
               <Activity className="w-4 h-4 text-white/55" />
@@ -1014,6 +1085,52 @@ export default function AmbientDashboard() {
             </div>
           </GlassCard>
 
+          {/* 2. 7-DAY SLEEP */}
+          <GlassCard className="flex flex-col flex-1 min-h-0">
+            <div className="flex items-center gap-2 mb-3 shrink-0">
+              <CheckCircle2 className="w-4 h-4 text-white/55" />
+              <span className="font-semibold text-sm text-white/55 uppercase tracking-widest">
+                7-Day Sleep
+              </span>
+            </div>
+            <div className="flex items-stretch justify-between gap-2.5 flex-1 min-h-0 tabular-nums">
+              {data.oura?.history && data.oura.history.length > 0 ? (
+                data.oura.history.map((d, i) => {
+                  const barHeightPct =
+                    d.hours > 0 ? Math.min(100, Math.max(18, Math.round((d.hours / 9) * 100))) : 0;
+                  const barColor =
+                    d.hours >= 7.5
+                      ? 'bg-emerald-400/20 border-emerald-400/30'
+                      : d.hours >= 6.5
+                        ? 'bg-sky-400/20 border-sky-400/30'
+                        : 'bg-amber-400/20 border-amber-400/30';
+                  return (
+                    <div
+                      key={i}
+                      className="relative flex flex-col items-center justify-between py-2.5 px-1 flex-1 h-full bg-white/[0.03] rounded-2xl border border-white/[0.07] overflow-hidden"
+                    >
+                      {barHeightPct > 0 && (
+                        <div
+                          style={{ height: `${barHeightPct}%` }}
+                          className={`absolute bottom-0 left-0 right-0 border-t transition-all duration-700 ${barColor}`}
+                        />
+                      )}
+                      <span className="relative z-10 text-xs text-white/55 font-semibold uppercase tracking-wider">
+                        {d.label.substring(0, 2)}
+                      </span>
+                      <span className="relative z-10 text-lg font-medium text-white/95">
+                        {d.hours > 0 ? `${d.hours}h` : '-'}
+                      </span>
+                    </div>
+                  );
+                })
+              ) : (
+                <span className="text-sm text-white/50 m-auto">Syncing sleep history...</span>
+              )}
+            </div>
+          </GlassCard>
+
+          {/* 3. INBOXES */}
           <GlassCard className="flex flex-col shrink-0">
             <div className="flex items-center gap-2 mb-4 shrink-0">
               <Mail className="w-4 h-4 text-white/55" />
@@ -1062,50 +1179,6 @@ export default function AmbientDashboard() {
               </div>
             </div>
           </GlassCard>
-
-          <GlassCard className="flex flex-col flex-1 min-h-0">
-            <div className="flex items-center gap-2 mb-3 shrink-0">
-              <CheckCircle2 className="w-4 h-4 text-white/55" />
-              <span className="font-semibold text-sm text-white/55 uppercase tracking-widest">
-                7-Day Sleep
-              </span>
-            </div>
-            <div className="flex items-stretch justify-between gap-2.5 flex-1 min-h-0 tabular-nums">
-              {data.oura?.history && data.oura.history.length > 0 ? (
-                data.oura.history.map((d, i) => {
-                  const barHeightPct =
-                    d.hours > 0 ? Math.min(100, Math.max(18, Math.round((d.hours / 9) * 100))) : 0;
-                  const barColor =
-                    d.hours >= 7.5
-                      ? 'bg-emerald-400/20 border-emerald-400/30'
-                      : d.hours >= 6.5
-                        ? 'bg-sky-400/20 border-sky-400/30'
-                        : 'bg-amber-400/20 border-amber-400/30';
-                  return (
-                    <div
-                      key={i}
-                      className="relative flex flex-col items-center justify-between py-2.5 px-1 flex-1 h-full bg-white/[0.03] rounded-2xl border border-white/[0.07] overflow-hidden"
-                    >
-                      {barHeightPct > 0 && (
-                        <div
-                          style={{ height: `${barHeightPct}%` }}
-                          className={`absolute bottom-0 left-0 right-0 border-t transition-all duration-700 ${barColor}`}
-                        />
-                      )}
-                      <span className="relative z-10 text-xs text-white/55 font-semibold uppercase tracking-wider">
-                        {d.label.substring(0, 2)}
-                      </span>
-                      <span className="relative z-10 text-lg font-medium text-white/95">
-                        {d.hours > 0 ? `${d.hours}h` : '-'}
-                      </span>
-                    </div>
-                  );
-                })
-              ) : (
-                <span className="text-sm text-white/50 m-auto">Syncing sleep history...</span>
-              )}
-            </div>
-          </GlassCard>
         </div>
 
         {/* RIGHT COLUMN */}
@@ -1128,9 +1201,30 @@ export default function AmbientDashboard() {
               {Object.values(groupedEvents).length > 0 ? (
                 Object.values(groupedEvents).map((group, gIdx) => (
                   <div key={gIdx} className="mb-6 last:mb-0">
-                    <div className="text-xs font-semibold text-white/55 uppercase tracking-widest mb-2 border-b border-white/10 pb-2">
-                      {group.dateLabel}
-                    </div>
+                    {group.isToday ? (
+                      <div className="flex items-center justify-between mb-2 border-b border-sky-400/30 pb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-sky-400 uppercase tracking-widest">
+                            Today
+                          </span>
+                          <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse" />
+                        </div>
+                        <span className="text-[11px] font-medium text-sky-300/70">
+                          {now
+                            ? now.toLocaleDateString('en-GB', {
+                                weekday: 'short',
+                                day: 'numeric',
+                                month: 'short',
+                                timeZone: TZ,
+                              })
+                            : ''}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="text-xs font-semibold text-white/55 uppercase tracking-widest mb-2 border-b border-white/10 pb-2">
+                        {group.dateLabel}
+                      </div>
+                    )}
                     <div className="flex flex-col">
                       {group.items.map((ev, idx) => {
                         const badge = getEventBadge(ev.summary);
@@ -1142,17 +1236,77 @@ export default function AmbientDashboard() {
                           timeZone: TZ,
                         });
                         const nowMs = now ? now.getTime() : 0;
+                        const startMs = new Date(ev.start).getTime();
+                        const endMs = ev.end ? new Date(ev.end).getTime() : startMs + 3600000;
                         const isActiveNow =
-                          now !== null &&
-                          new Date(ev.start).getTime() <= nowMs &&
-                          (ev.end ? new Date(ev.end).getTime() > nowMs : false);
+                          now !== null && startMs <= nowMs && endMs > nowMs;
+                        const isPast = now !== null && endMs <= nowMs;
+
+                        if (isPast) {
+                          return (
+                            <div
+                              key={idx}
+                              className="py-2.5 px-2 -mx-2 rounded-xl flex items-center justify-between gap-4 border-b border-white/[0.03] last:border-0 opacity-40 hover:opacity-80 transition-opacity"
+                            >
+                              <div className="flex items-center gap-4 min-w-0">
+                                <span className="w-[48px] text-sm font-medium tabular-nums text-white/40 shrink-0 line-through">
+                                  {evTime}
+                                </span>
+                                <div className="w-2 h-2 rounded-full shrink-0 bg-white/20" />
+                                <span className="text-lg font-medium text-white/50 truncate">
+                                  {ev.summary}
+                                </span>
+                                {ev.location && (
+                                  <span className="text-xs font-medium text-white/30 truncate hidden xl:inline">
+                                    • {ev.location}
+                                  </span>
+                                )}
+                              </div>
+                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-white/[0.02] border border-white/[0.04] shrink-0 text-white/35">
+                                <BadgeIcon className="w-3.5 h-3.5 opacity-50" />
+                                {badge.label}
+                              </span>
+                            </div>
+                          );
+                        }
+
+                        if (isActiveNow) {
+                          return (
+                            <div
+                              key={idx}
+                              className="py-3 px-2 -mx-2 rounded-xl flex items-center justify-between gap-4 border-b border-white/[0.06] last:border-0 bg-emerald-500/[0.12] border border-emerald-500/25"
+                            >
+                              <div className="flex items-center gap-4 min-w-0">
+                                <span className="w-[48px] text-sm font-semibold tabular-nums text-emerald-300 shrink-0">
+                                  {evTime}
+                                </span>
+                                <div className="w-2 h-2 rounded-full shrink-0 bg-emerald-400 animate-pulse" />
+                                <span className="text-lg font-medium text-white truncate">
+                                  {ev.summary}
+                                </span>
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-400/20 text-emerald-300 border border-emerald-400/30 shrink-0">
+                                  Live
+                                </span>
+                                {ev.location && (
+                                  <span className="text-xs font-medium text-white/60 truncate hidden xl:inline">
+                                    • {ev.location}
+                                  </span>
+                                )}
+                              </div>
+                              <span
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/[0.05] border border-white/[0.08] shrink-0 ${badge.color}`}
+                              >
+                                <BadgeIcon className="w-3.5 h-3.5" />
+                                {badge.label}
+                              </span>
+                            </div>
+                          );
+                        }
 
                         return (
                           <div
                             key={idx}
-                            className={`py-3 px-2 -mx-2 rounded-xl flex items-center justify-between gap-4 border-b border-white/[0.06] last:border-0 ${
-                              isActiveNow ? 'bg-emerald-500/[0.08]' : ''
-                            }`}
+                            className="py-3 px-2 -mx-2 rounded-xl flex items-center justify-between gap-4 border-b border-white/[0.06] last:border-0"
                           >
                             <div className="flex items-center gap-4 min-w-0">
                               <span className="w-[48px] text-sm font-medium tabular-nums text-white/65 shrink-0">
@@ -1160,11 +1314,7 @@ export default function AmbientDashboard() {
                               </span>
                               <div
                                 className={`w-2 h-2 rounded-full shrink-0 ${
-                                  isActiveNow
-                                    ? 'bg-emerald-400 animate-pulse'
-                                    : isUni
-                                      ? 'bg-purple-400'
-                                      : 'bg-white/50'
+                                  isUni ? 'bg-purple-400' : 'bg-white/50'
                                 }`}
                               />
                               <span className="text-lg font-medium text-white/95 truncate">
@@ -1196,7 +1346,7 @@ export default function AmbientDashboard() {
             </div>
           </GlassCard>
 
-          {/* REMINDERS */}
+          {/* TASKS & REMINDERS (TWO COLUMNS) */}
           <GlassCard
             onClick={() => setManualModal('reminders')}
             className="flex flex-col flex-1 min-h-0 relative"
@@ -1217,24 +1367,24 @@ export default function AmbientDashboard() {
             </div>
             <div className="flex-1 overflow-y-auto pr-2">
               {todayReminders.length > 0 ? (
-                <div className="flex flex-col">
+                <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
                   {todayReminders.map((item, idx) => {
                     const listStyle = getReminderListStyle(item.list || item.listName);
                     const dueMeta = getReminderDueMeta(item);
                     return (
                       <div
                         key={item.id || idx}
-                        className="py-3 flex items-center justify-between gap-4 border-b border-white/[0.06] last:border-0"
+                        className="py-2.5 px-2 rounded-xl flex items-center justify-between gap-3 border-b border-white/[0.05] hover:bg-white/[0.02] transition-colors"
                       >
-                        <div className="flex items-center gap-4 min-w-0">
+                        <div className="flex items-center gap-3 min-w-0">
                           <div
-                            className={`w-3.5 h-3.5 rounded-full border-2 shrink-0 ${listStyle.border} bg-transparent`}
+                            className={`w-3 h-3 rounded-full border-2 shrink-0 ${listStyle.border} bg-transparent`}
                           />
                           <div className="flex flex-col min-w-0">
-                            <span className="text-lg font-medium text-white/95 truncate leading-tight">
+                            <span className="text-base font-medium text-white/95 truncate leading-tight">
                               {item.title || item.text}
                             </span>
-                            <span className={`text-xs font-medium capitalize ${listStyle.color}`}>
+                            <span className={`text-[11px] font-medium capitalize ${listStyle.color}`}>
                               {listStyle.name}
                             </span>
                           </div>
