@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "setup:reminders": "bash scripts/reminders/install-sync.sh"
   },
   "dependencies": {
     "lucide-react": "^1.66.0",

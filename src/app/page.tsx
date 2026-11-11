@@ -65,11 +65,16 @@ interface ReminderListObject {
 }
 
 interface ReminderItem {
+  id?: string;
   title?: string;
   text?: string;
-  dueDate?: string;
+  dueDate?: string | null;
+  hasTime?: boolean;
+  priority?: number;
+  flagged?: boolean;
   list?: string | ReminderListObject;
   listName?: string;
+  notes?: string;
 }
 
 interface EmailBox {
@@ -533,16 +538,105 @@ export default function AmbientDashboard() {
   const leftColSpan = isDeepWork ? 'col-span-3' : 'col-span-4';
   const rightColSpan = isDeepWork ? 'col-span-9' : 'col-span-8';
 
+  const getReminderDueMeta = useMemo(() => {
+    const tomorrowIso = now
+      ? new Date(now.getTime() + 86400000).toLocaleDateString('en-CA', { timeZone: TZ })
+      : '';
+
+    return (item: ReminderItem) => {
+      if (!item.dueDate || !todayIso) {
+        return {
+          bucket: 'undated' as const,
+          label: item.flagged || (item.priority && item.priority <= 4) ? 'Priority' : null,
+          isOverdue: false,
+          isToday: false,
+        };
+      }
+      const d = new Date(item.dueDate);
+      if (isNaN(d.getTime())) {
+        return { bucket: 'undated' as const, label: null, isOverdue: false, isToday: false };
+      }
+      const itemIso = d.toLocaleDateString('en-CA', { timeZone: TZ });
+      const showTime =
+        item.hasTime !== undefined
+          ? item.hasTime
+          : d.getHours() !== 0 || d.getMinutes() !== 0;
+      const timeStr = showTime
+        ? d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: TZ })
+        : null;
+
+      if (itemIso < todayIso) {
+        return {
+          bucket: 'overdue' as const,
+          label: 'Overdue',
+          isOverdue: true,
+          isToday: false,
+        };
+      }
+      if (itemIso === todayIso) {
+        return {
+          bucket: 'today' as const,
+          label: timeStr || 'Today',
+          isOverdue: false,
+          isToday: true,
+        };
+      }
+      if (itemIso === tomorrowIso) {
+        return {
+          bucket: 'upcoming' as const,
+          label: timeStr ? `Tmrw ${timeStr}` : 'Tomorrow',
+          isOverdue: false,
+          isToday: false,
+        };
+      }
+      const shortDate = d.toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'short',
+        timeZone: TZ,
+      });
+      return {
+        bucket: 'upcoming' as const,
+        label: shortDate,
+        isOverdue: false,
+        isToday: false,
+      };
+    };
+  }, [now, todayIso]);
+
   const todayReminders = useMemo(() => {
-    if (!todayIso) return [];
-    return (data.reminders || [])
-      .filter((item) => {
-        if (!item.dueDate) return false;
-        const d = new Date(item.dueDate);
-        return !isNaN(d.getTime()) && d.toLocaleDateString('en-CA', { timeZone: TZ }) === todayIso;
-      })
-      .sort((a, b) => new Date(a.dueDate || 0).getTime() - new Date(b.dueDate || 0).getTime());
-  }, [data.reminders, todayIso]);
+    const all = data.reminders || [];
+    if (all.length === 0) return [];
+
+    const scored = all.map((item) => {
+      const meta = getReminderDueMeta(item);
+      const bucketWeight =
+        meta.bucket === 'overdue'
+          ? 0
+          : meta.bucket === 'today'
+            ? 1
+            : item.flagged || (item.priority && item.priority > 0 && item.priority <= 4)
+              ? 2
+              : meta.bucket === 'undated'
+                ? 3
+                : 4;
+      const dueMs = item.dueDate ? new Date(item.dueDate).getTime() : Number.POSITIVE_INFINITY;
+      return { item, meta, bucketWeight, dueMs };
+    });
+
+    scored.sort((a, b) => {
+      if (a.bucketWeight !== b.bucketWeight) return a.bucketWeight - b.bucketWeight;
+      if (a.dueMs !== b.dueMs) return a.dueMs - b.dueMs;
+      return (a.item.title || a.item.text || '').localeCompare(b.item.title || b.item.text || '');
+    });
+
+    // If there are overdue or today items, show all of them plus top priority/undated items up to 8;
+    // otherwise show up to 8 undated/upcoming tasks so the card never looks empty when tasks exist.
+    const urgent = scored.filter((s) => s.meta.isOverdue || s.meta.isToday);
+    if (urgent.length >= 6) {
+      return urgent.map((s) => s.item);
+    }
+    return scored.slice(0, 8).map((s) => s.item);
+  }, [data.reminders, getReminderDueMeta]);
 
   // Check if nextEvent is currently active and calculate progress
   const nextEventStatus = useMemo(() => {
@@ -603,18 +697,32 @@ export default function AmbientDashboard() {
               <div className="overflow-y-auto pr-4 space-y-2.5">
                 {data.reminders.map((r, i) => {
                   const listStyle = getReminderListStyle(r.list || r.listName);
+                  const dueMeta = getReminderDueMeta(r);
                   return (
                     <div
-                      key={i}
+                      key={r.id || i}
                       className="py-5 px-6 bg-white/[0.04] border border-white/[0.06] rounded-2xl flex items-center gap-5"
                     >
                       <div
                         className={`w-4 h-4 rounded-full border-2 ${listStyle.border} bg-transparent shrink-0`}
                       />
-                      <div className="font-medium text-xl flex-1 text-white/95">
+                      <div className="font-medium text-xl flex-1 text-white/95 truncate">
                         {r.title || r.text || 'Untitled'}
                       </div>
-                      <span className={`text-base font-medium capitalize ${listStyle.color}`}>
+                      {dueMeta.label && (
+                        <span
+                          className={`px-3 py-1 rounded-full text-sm font-medium tabular-nums shrink-0 ${
+                            dueMeta.isOverdue
+                              ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                              : dueMeta.isToday
+                                ? 'bg-sky-500/15 text-sky-300 border border-sky-500/30'
+                                : 'bg-white/[0.06] text-white/65'
+                          }`}
+                        >
+                          {dueMeta.label}
+                        </span>
+                      )}
+                      <span className={`text-base font-medium capitalize shrink-0 ${listStyle.color}`}>
                         {listStyle.name}
                       </span>
                     </div>
@@ -1099,11 +1207,11 @@ export default function AmbientDashboard() {
             <div className="flex items-center gap-2.5 mb-4 shrink-0">
               <CheckCircle2 className="w-4 h-4 text-white/55" />
               <span className="font-semibold text-sm text-white/55 uppercase tracking-widest">
-                Today&apos;s Tasks
+                Tasks &amp; Reminders
               </span>
-              {data.reminders.length > todayReminders.length && (
+              {data.reminders.length > 0 && (
                 <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-white/[0.06] text-white/55 tabular-nums">
-                  {data.reminders.length} total
+                  {data.reminders.length} active
                 </span>
               )}
             </div>
@@ -1112,14 +1220,10 @@ export default function AmbientDashboard() {
                 <div className="flex flex-col">
                   {todayReminders.map((item, idx) => {
                     const listStyle = getReminderListStyle(item.list || item.listName);
-                    const dueDateObj = item.dueDate ? new Date(item.dueDate) : null;
-                    const hasTime =
-                      dueDateObj !== null &&
-                      !isNaN(dueDateObj.getTime()) &&
-                      (dueDateObj.getHours() !== 0 || dueDateObj.getMinutes() !== 0);
+                    const dueMeta = getReminderDueMeta(item);
                     return (
                       <div
-                        key={idx}
+                        key={item.id || idx}
                         className="py-3 flex items-center justify-between gap-4 border-b border-white/[0.06] last:border-0"
                       >
                         <div className="flex items-center gap-4 min-w-0">
@@ -1135,13 +1239,17 @@ export default function AmbientDashboard() {
                             </span>
                           </div>
                         </div>
-                        {hasTime && dueDateObj && (
-                          <span className="text-sm font-medium tabular-nums text-white/60 shrink-0">
-                            {dueDateObj.toLocaleTimeString('en-GB', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                              timeZone: TZ,
-                            })}
+                        {dueMeta.label && (
+                          <span
+                            className={`text-xs font-medium tabular-nums shrink-0 px-2.5 py-0.5 rounded-full ${
+                              dueMeta.isOverdue
+                                ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                                : dueMeta.isToday
+                                  ? 'bg-sky-500/10 text-sky-300 border border-sky-500/20'
+                                  : 'text-white/55 bg-white/[0.04]'
+                            }`}
+                          >
+                            {dueMeta.label}
                           </span>
                         )}
                       </div>
