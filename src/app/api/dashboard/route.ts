@@ -5,8 +5,6 @@ import { getRedis } from '@/lib/redis';
 import { getTuyaDevices, type TuyaDevicesState } from '@/lib/tuya';
 
 export const maxDuration = 30;
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
 
 const TZ = 'Europe/London';
 
