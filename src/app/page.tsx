@@ -50,6 +50,22 @@ import {
 import type { BatteryFleetData } from '@/app/api/battery/route';
 import type { SamsungTvState } from '@/lib/smartthings';
 
+declare global {
+  interface Window {
+    fully?: {
+      setScreenBrightness?: (value: number) => void;
+      turnScreenOff?: () => void;
+      turnScreenOn?: () => void;
+      screenOff?: () => void;
+      screenOn?: () => void;
+      getScreenBrightness?: () => number;
+      isScreenOn?: () => boolean;
+      startScreensaver?: () => void;
+      stopScreensaver?: () => void;
+    };
+  }
+}
+
 const TZ = 'Europe/London';
 
 interface WeatherData {
@@ -744,8 +760,28 @@ export default function AmbientDashboard() {
   const currentHour = now ? now.getHours() : 12;
   const currentMinute = now ? now.getMinutes() : 0;
   const isDeepWork = currentHour >= 9 && currentHour < 17;
-  const isEvening = currentHour >= 20 || currentHour < 6;
-  const isDeepSleep = (currentHour === 23 && currentMinute >= 30) || currentHour < 6;
+  const isEvening = currentHour >= 21 || currentHour < 7;
+  // Sleep window: 00:30 to 07:00
+  const isDeepSleep =
+    (currentHour === 0 && currentMinute >= 30) || (currentHour >= 1 && currentHour < 7);
+
+  // Fully Kiosk Auto-Dimming & Screen Wake
+  // Dims screen to 5% brightness during 00:30 - 07:00, restores 100% and wakes screen at 07:00
+  useEffect(() => {
+    if (!now) return;
+    try {
+      if (typeof window !== 'undefined' && window.fully) {
+        if (isDeepSleep) {
+          window.fully.setScreenBrightness?.(5);
+        } else {
+          window.fully.turnScreenOn?.();
+          window.fully.setScreenBrightness?.(100);
+        }
+      }
+    } catch (e) {
+      console.warn('Fully Kiosk API call failed:', e);
+    }
+  }, [now, isDeepSleep]);
 
   // Subtle orbital pixel shift (±3px X, ±2px Y) to prevent 24/7 static burn-in
   const pixelShift = useMemo(() => {
@@ -1855,7 +1891,7 @@ export default function AmbientDashboard() {
   };
 
   const ambientOpacityClass = isDeepSleep
-    ? 'opacity-45'
+    ? 'opacity-5'
     : isEvening
       ? 'opacity-80'
       : 'opacity-100';
