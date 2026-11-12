@@ -164,45 +164,6 @@ const GlassCard = React.memo(
 );
 GlassCard.displayName = 'GlassCard';
 
-const NewsTicker = React.memo(
-  ({
-    news,
-    isEvening,
-    isDeepSleep,
-  }: {
-    news: string[];
-    isEvening: boolean;
-    isDeepSleep: boolean;
-  }) => (
-    <div
-      className={`bg-white/[0.035] border border-white/[0.09] shadow-[0_8px_32px_0_rgba(0,0,0,0.45)] rounded-3xl p-3.5 shrink-0 overflow-hidden flex items-center gap-4 transition-opacity duration-1000 ${
-        isEvening ? 'opacity-80' : 'opacity-100'
-      }`}
-    >
-      <div className="text-xs font-semibold uppercase tracking-widest text-white/55 shrink-0 border-r border-white/15 pr-4">
-        BBC News
-      </div>
-      <div className="overflow-hidden flex-1 relative">
-        {news && news.length > 0 ? (
-          <div className={`animate-ticker items-center ${isDeepSleep ? 'animate-ticker-paused' : ''}`}>
-            {[...news, ...news, ...news].map((headline: string, i: number) => (
-              <span
-                key={i}
-                className="text-sm font-medium text-white/80 whitespace-nowrap mr-12 shrink-0"
-              >
-                {headline}
-              </span>
-            ))}
-          </div>
-        ) : (
-          <span className="text-sm text-white/50">Syncing headlines...</span>
-        )}
-      </div>
-    </div>
-  )
-);
-NewsTicker.displayName = 'NewsTicker';
-
 const UpcomingEventModal = ({
   event,
   onClose,
@@ -1660,9 +1621,9 @@ export default function AmbientDashboard() {
       {renderModal()}
 
       {/* TOP HEADER */}
-      <header className="grid grid-cols-12 gap-6 items-stretch shrink-0 h-28">
+      <header className="grid grid-cols-12 gap-5 items-stretch shrink-0 h-32">
         <div className="col-span-3 flex flex-col justify-center">
-          <div className="text-7xl font-medium tracking-tighter tabular-nums text-white/95 leading-none">
+          <div className="text-7xl xl:text-8xl font-medium tracking-tighter tabular-nums text-white/95 leading-none">
             {timeString}
           </div>
           <div className="flex items-center gap-2.5 mt-2">
@@ -1730,165 +1691,163 @@ export default function AmbientDashboard() {
           </div>
         </div>
 
+        {/* 2. UP NEXT (COMPACT) */}
         <GlassCard
           onClick={() => setManualModal('calendar')}
-          className="col-span-3 flex flex-col justify-center gap-1.5 !p-5 relative overflow-hidden transition-all duration-700"
+          className="col-span-2 flex flex-col justify-between !p-4 relative overflow-hidden transition-all duration-700"
         >
-          {data.battery?.media?.isPlaying ? (
-            <>
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-pink-500 animate-pulse" />
-                  <span className="text-xs font-semibold uppercase tracking-widest text-pink-300 flex items-center gap-1.5">
-                    <Music className="w-3.5 h-3.5 animate-bounce" /> Now Playing
-                  </span>
-                </div>
-                {nextEvent && (
-                  <span className="text-[10px] text-white/50 truncate max-w-[130px] font-medium">
-                    Up next: {nextEvent.summary}
-                  </span>
-                )}
-              </div>
-              <div className="text-xl font-medium text-white/95 truncate">
-                {data.battery.media.title}
-              </div>
-              <div className="flex items-center justify-between gap-2 text-sm font-medium text-white/55 truncate">
-                <span className="truncate">{data.battery.media.artist}</span>
-                {data.battery.media.album && (
-                  <span className="text-xs text-white/40 truncate hidden xl:inline">
-                    • {data.battery.media.album}
-                  </span>
-                )}
-              </div>
-              <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 opacity-80" />
-            </>
-          ) : (
-            <>
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <div
-                    className={`w-2 h-2 rounded-full ${
-                      nextEventStatus.isActive
-                        ? 'bg-emerald-400 animate-pulse'
-                        : nextEvent
-                          ? 'bg-sky-400 animate-pulse'
-                          : 'bg-white/25'
-                    }`}
-                  />
-                  <span className="text-xs font-semibold uppercase tracking-widest text-white/60">
-                    {nextEventStatus.isActive ? 'NOW ACTIVE' : 'UP NEXT'}
-                  </span>
-                </div>
-                {nextEventStatus.isSoon && (data.weather?.precipitation ?? 0) > 0 && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-sky-500/15 text-sky-300 border border-sky-400/25">
-                    <Umbrella className="w-3 h-3" />
-                    {data.weather.precipitation}mm
-                  </span>
-                )}
-              </div>
-              <div className="text-xl font-medium text-white/95 truncate">
-                {nextEvent ? nextEvent.summary : 'Clear Schedule'}
-              </div>
-              <div className="flex items-center justify-between gap-2 text-sm font-medium text-white/55 tabular-nums">
-                <span>
-                  {nextEvent ? getRelativeTime(nextEvent.start, nextEvent.end) : 'Relax'}
-                </span>
-                {nextEvent?.location && (
-                  <span className="text-xs text-white/45 truncate max-w-[140px]">
-                    {nextEvent.location}
-                  </span>
-                )}
-              </div>
-              {nextEventStatus.isActive && (
-                <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10">
-                  <div
-                    className="h-full bg-emerald-400/80 transition-all duration-1000"
-                    style={{ width: `${nextEventStatus.progressPct}%` }}
-                  />
-                </div>
-              )}
-            </>
+          <div className="flex items-center justify-between gap-1.5">
+            <div className="flex items-center gap-1.5">
+              <div
+                className={`w-2 h-2 rounded-full ${
+                  nextEventStatus.isActive
+                    ? 'bg-emerald-400 animate-pulse'
+                    : nextEvent
+                      ? 'bg-sky-400 animate-pulse'
+                      : 'bg-white/25'
+                }`}
+              />
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-white/60">
+                {nextEventStatus.isActive ? 'NOW ACTIVE' : 'UP NEXT'}
+              </span>
+            </div>
+            {nextEventStatus.isSoon && (data.weather?.precipitation ?? 0) > 0 && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-sky-500/15 text-sky-300 border border-sky-400/25">
+                <Umbrella className="w-2.5 h-2.5" />
+                {data.weather.precipitation}mm
+              </span>
+            )}
+          </div>
+          <div className="text-base xl:text-lg font-medium text-white/95 truncate">
+            {nextEvent ? nextEvent.summary : 'Clear Schedule'}
+          </div>
+          <div className="flex items-center justify-between gap-1 text-xs font-medium text-white/55 tabular-nums">
+            <span className="truncate">
+              {nextEvent ? getRelativeTime(nextEvent.start, nextEvent.end) : 'Relax'}
+            </span>
+            {nextEvent?.location && (
+              <span className="text-[11px] text-white/40 truncate max-w-[85px]">
+                {nextEvent.location}
+              </span>
+            )}
+          </div>
+          {nextEventStatus.isActive && (
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10">
+              <div
+                className="h-full bg-emerald-400/80 transition-all duration-1000"
+                style={{ width: `${nextEventStatus.progressPct}%` }}
+              />
+            </div>
           )}
         </GlassCard>
 
-        {/* TOP RIGHT: WEATHER & HALF SOVEREIGN GOLD TRACKER */}
-        <div className="col-span-6 grid grid-cols-12 gap-5 h-full">
-          <GlassCard className="col-span-4 !p-4 flex flex-col justify-between items-center text-center">
-            <span className="text-xs font-semibold uppercase tracking-widest text-white/55">
-              Weather
+        {/* 3. WEATHER */}
+        <GlassCard className="col-span-2 !p-4 flex flex-col justify-between items-center text-center">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-white/55">
+            Weather
+          </span>
+          <div className="flex items-center gap-2 tabular-nums">
+            <span className={`text-3xl xl:text-4xl font-light tracking-tight ${tempColor}`}>
+              {data.weather?.temp}
+              <span className={tempColor}>°</span>
             </span>
-            <div className="flex items-center gap-2.5 tabular-nums">
-              <span className={`text-3xl font-light tracking-tight ${tempColor}`}>
-                {data.weather?.temp}
-                <span className={tempColor}>°</span>
-              </span>
-              <WeatherIcon className={`w-6 h-6 ${weatherIconColor} ${weatherIconGlow}`} />
-            </div>
-            <div className="text-[11px] font-medium text-white/50 tabular-nums">
-              {(data.weather?.precipitation ?? 0) > 0
-                ? `${data.weather.precipitation}mm rain`
-                : `AQI ${data.weather?.aqi ?? '--'}`}
-            </div>
-          </GlassCard>
+            <WeatherIcon className={`w-6 h-6 ${weatherIconColor} ${weatherIconGlow}`} />
+          </div>
+          <div className="text-[11px] font-medium text-white/50 tabular-nums">
+            {(data.weather?.precipitation ?? 0) > 0
+              ? `${data.weather.precipitation}mm rain`
+              : `AQI ${data.weather?.aqi ?? '--'}`}
+          </div>
+        </GlassCard>
 
-          <GlassCard className="col-span-8 !p-4 flex flex-col justify-between relative overflow-hidden">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Coins className="w-3.5 h-3.5 text-amber-400" />
-                <span className="text-xs font-semibold uppercase tracking-widest text-amber-300/90">
-                  ½ Sovereign Gold
-                </span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-400/10 border border-amber-400/20 text-amber-300/75 font-mono">
-                  3.66g 22k
-                </span>
-              </div>
-              <span className="text-[11px] font-medium text-white/45 tabular-nums">
-                Cost: £{data.gold?.purchasePrice ? data.gold.purchasePrice.toFixed(2) : '385.00'}
+        {/* 4. HALF SOVEREIGN GOLD */}
+        <GlassCard className="col-span-2 !p-4 flex flex-col justify-between relative overflow-hidden">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <Coins className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-300/90 truncate">
+                ½ Sovereign
               </span>
             </div>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-400/10 border border-amber-400/20 text-amber-300/75 font-mono">
+              3.66g
+            </span>
+          </div>
 
-            <div className="flex items-baseline justify-between gap-3 my-0.5 tabular-nums">
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-light text-white tracking-tight">
-                  {data.gold?.currentValue ? `£${data.gold.currentValue.toFixed(2)}` : '£--'}
-                </span>
-                <span className="text-xs text-white/45 font-medium">
-                  {data.gold?.gramPriceGbp ? `£${data.gold.gramPriceGbp.toFixed(2)}/g` : ''}
+          <div className="flex items-baseline justify-between gap-1 my-0.5 tabular-nums">
+            <span className="text-2xl xl:text-3xl font-light text-white tracking-tight">
+              {data.gold?.currentValue ? `£${data.gold.currentValue.toFixed(2)}` : '£--'}
+            </span>
+            {data.gold && data.gold.currentValue > 0 && (
+              <div
+                className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-lg text-[10px] font-semibold tabular-nums border ${
+                  data.gold.isProfit
+                    ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
+                    : 'bg-rose-500/15 border-rose-500/30 text-rose-300'
+                }`}
+              >
+                {data.gold.isProfit ? (
+                  <TrendingUp className="w-3 h-3 text-emerald-400 shrink-0" />
+                ) : (
+                  <TrendingDown className="w-3 h-3 text-rose-400 shrink-0" />
+                )}
+                <span>
+                  {data.gold.isProfit ? '+' : ''}£{Math.abs(data.gold.profitGbp).toFixed(1)}
                 </span>
               </div>
+            )}
+          </div>
 
-              {/* Profit / Loss Badge */}
-              {data.gold && data.gold.currentValue > 0 ? (
-                <div
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold tabular-nums border ${
-                    data.gold.isProfit
-                      ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
-                      : 'bg-rose-500/15 border-rose-500/30 text-rose-300'
+          <div className="flex items-center justify-between text-[11px] text-white/40 tabular-nums">
+            <span>Cost: £385</span>
+            <span>{data.gold?.gramPriceGbp ? `£${data.gold.gramPriceGbp.toFixed(2)}/g` : ''}</span>
+          </div>
+        </GlassCard>
+
+        {/* 5. NOW PLAYING (TO THE RIGHT OF GOLD PRICE CARD) */}
+        <GlassCard className="col-span-3 !p-4 flex flex-col justify-between relative overflow-hidden transition-all duration-700">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <div
+                className={`w-2 h-2 rounded-full ${
+                  data.battery?.media?.isPlaying ? 'bg-pink-400 animate-pulse' : 'bg-white/30'
+                }`}
+              />
+              <span
+                className={`text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1.5 ${
+                  data.battery?.media?.isPlaying ? 'text-pink-300' : 'text-white/50'
+                }`}
+              >
+                <Music
+                  className={`w-3.5 h-3.5 ${
+                    data.battery?.media?.isPlaying ? 'animate-bounce text-pink-400' : 'text-white/40'
                   }`}
-                >
-                  {data.gold.isProfit ? (
-                    <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
-                  ) : (
-                    <TrendingDown className="w-3.5 h-3.5 text-rose-400" />
-                  )}
-                  <span>
-                    {data.gold.isProfit ? '+' : ''}£{Math.abs(data.gold.profitGbp).toFixed(2)}
-                  </span>
-                  <span className="opacity-75">
-                    ({data.gold.isProfit ? '+' : ''}{data.gold.profitPct.toFixed(2)}%)
-                  </span>
-                </div>
-              ) : (
-                <span className="text-xs text-white/40">Syncing PAXG...</span>
-              )}
+                />
+                {data.battery?.media?.isPlaying ? 'Now Playing' : 'Apple Music'}
+              </span>
             </div>
+            <span className="text-[10px] text-white/40 uppercase tracking-wider font-medium">
+              {data.battery?.media?.isPlaying ? 'Playing' : 'Standby'}
+            </span>
+          </div>
 
-            <div className="flex items-center justify-between text-[11px] text-white/40 tabular-nums">
-              <span>PAXG ${data.gold?.paxgUsdt ? data.gold.paxgUsdt.toFixed(0) : '--'}</span>
-              <span>USD/GBP {data.gold?.gbpUsdt ? data.gold.gbpUsdt.toFixed(3) : '--'}</span>
-            </div>
-          </GlassCard>
-        </div>
+          <div className="text-base xl:text-lg font-medium text-white/95 truncate">
+            {data.battery?.media?.title || 'No Track Playing'}
+          </div>
+
+          <div className="flex items-center justify-between text-xs text-white/50 truncate">
+            <span className="truncate">{data.battery?.media?.artist || 'Music Idle'}</span>
+            {data.battery?.media?.album && (
+              <span className="text-[10px] text-white/35 truncate hidden xl:inline">
+                • {data.battery.media.album}
+              </span>
+            )}
+          </div>
+
+          {data.battery?.media?.isPlaying && (
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 opacity-80" />
+          )}
+        </GlassCard>
       </header>
 
       {/* MAIN CONTENT GRID */}
@@ -2122,18 +2081,14 @@ export default function AmbientDashboard() {
             onClick={() => setManualModal('meds')}
             className="flex flex-col flex-1 min-h-[185px] !p-4.5 !py-3.5 relative cursor-pointer hover:bg-white/[0.05] transition-all group"
           >
-            <div className="absolute top-4 right-4 flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/[0.06] border border-white/10 text-white/60 text-[10px] font-medium uppercase tracking-wider">
-              <span>Press</span>
-              <ChevronUp className="w-3 h-3 text-sky-400 stroke-[2.5]" />
-            </div>
             <div className="flex items-center justify-between mb-2 shrink-0">
               <div className="flex items-center gap-2">
                 <Pill className="w-4 h-4 text-sky-400" />
                 <span className="font-semibold text-sm text-white/60 uppercase tracking-widest">
-                  ADHD Protocol
+                  ADHD Medication
                 </span>
               </div>
-              <div className="flex items-center gap-2 tabular-nums mr-14">
+              <div className="flex items-center gap-3 tabular-nums">
                 <div className="flex items-baseline gap-1">
                   <span
                     className={`text-lg font-bold ${
@@ -2145,6 +2100,10 @@ export default function AmbientDashboard() {
                     {pkStats?.currentLevel !== undefined ? pkStats.currentLevel.toFixed(1) : '--'}
                   </span>
                   <span className="text-[11px] font-medium text-white/45">ng/mL</span>
+                </div>
+                <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/[0.06] border border-white/10 text-white/60 text-[10px] font-medium uppercase tracking-wider">
+                  <span>Press</span>
+                  <ChevronUp className="w-3 h-3 text-sky-400 stroke-[2.5]" />
                 </div>
               </div>
             </div>
@@ -2298,7 +2257,7 @@ export default function AmbientDashboard() {
               <div className="flex items-center gap-2">
                 <Battery className="w-3.5 h-3.5 text-emerald-400" />
                 <span className="font-semibold text-xs text-white/60 uppercase tracking-widest">
-                  Device Fleet
+                  Device Battery Levels
                 </span>
               </div>
               <span className="text-[10px] text-white/40 tabular-nums">
@@ -2631,8 +2590,6 @@ export default function AmbientDashboard() {
           </GlassCard>
         </div>
       </div>
-
-      <NewsTicker news={data.news} isEvening={isEvening} isDeepSleep={isDeepSleep} />
     </main>
   );
 }
