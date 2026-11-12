@@ -2,6 +2,7 @@ import { NextResponse, connection } from 'next/server';
 import Parser from 'rss-parser';
 import ical, { type CalendarComponent, type ParameterValue, type VEvent } from 'node-ical';
 import { getRedis } from '@/lib/redis';
+import { getTuyaDevices, type TuyaDevicesState } from '@/lib/tuya';
 
 export const maxDuration = 30;
 
@@ -95,6 +96,7 @@ interface DashboardSnapshot {
   events: CalendarEventItem[];
   news: string[];
   gold: GoldData;
+  tuya?: TuyaDevicesState;
   updatedAt: string;
 }
 
@@ -555,12 +557,19 @@ export async function GET() {
     return fallbackGold;
   })();
 
-  const [weather, oura, events, news, gold] = await Promise.all([
+  const tuyaTask = getTuyaDevices().catch((err) => ({
+    fan: null,
+    lamp: null,
+    error: err instanceof Error ? err.message : String(err),
+  }));
+
+  const [weather, oura, events, news, gold, tuya] = await Promise.all([
     weatherTask,
     ouraTask,
     calendarTask,
     newsTask,
     goldTask,
+    tuyaTask,
   ]);
 
   const payload: DashboardSnapshot = {
@@ -569,6 +578,7 @@ export async function GET() {
     events,
     news,
     gold,
+    tuya,
     updatedAt: new Date().toISOString(),
   };
 

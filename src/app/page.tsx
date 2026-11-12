@@ -29,6 +29,8 @@ import {
   Footprints,
   Pill,
   Sparkles,
+  Fan,
+  Lightbulb,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -113,6 +115,13 @@ interface EmailsData {
   uni: EmailBox;
 }
 
+interface TuyaState {
+  fan: boolean | null;
+  lamp: boolean | null;
+  error?: string | null;
+  updatedAt?: string;
+}
+
 interface DashboardState {
   weather: WeatherData;
   oura: OuraData;
@@ -122,6 +131,7 @@ interface DashboardState {
   emails: EmailsData;
   gold: GoldData;
   meds: MedLogPayload;
+  tuya?: TuyaState;
   updatedAt?: string;
 }
 
@@ -365,6 +375,7 @@ export default function AmbientDashboard() {
       isProfit: false,
     },
     meds: { date: '', taken: {} },
+    tuya: { fan: null, lamp: null },
   });
 
   useEffect(() => {
@@ -405,6 +416,9 @@ export default function AmbientDashboard() {
           }
           if (dashJson.gold) {
             updates.gold = dashJson.gold;
+          }
+          if (dashJson.tuya) {
+            updates.tuya = dashJson.tuya;
           }
           if (dashJson.updatedAt) {
             updates.updatedAt = dashJson.updatedAt;
@@ -1653,6 +1667,49 @@ export default function AmbientDashboard() {
                 {isStale ? `Stale ${syncAgeMins ?? ''}m` : 'Live'}
               </span>
             )}
+
+            {/* TUYA SMART PLUGS (FAN & LAMP) */}
+            <div className="flex items-center gap-1.5 shrink-0 ml-0.5">
+              {/* Fan Circle */}
+              <div
+                title={
+                  data.tuya?.fan === true
+                    ? 'Fan: ON'
+                    : data.tuya?.fan === false
+                      ? 'Fan: OFF'
+                      : 'Fan: Standby'
+                }
+                className={`w-5 h-5 rounded-full flex items-center justify-center transition-all ${
+                  data.tuya?.fan === true
+                    ? 'bg-cyan-500/25 text-cyan-300 border border-cyan-400/50 shadow-[0_0_8px_rgba(34,211,238,0.45)]'
+                    : 'bg-white/[0.06] text-white/35 border border-white/10'
+                }`}
+              >
+                <Fan
+                  className={`w-3 h-3 ${
+                    data.tuya?.fan === true ? 'animate-spin [animation-duration:3s]' : ''
+                  }`}
+                />
+              </div>
+
+              {/* Lamp Circle */}
+              <div
+                title={
+                  data.tuya?.lamp === true
+                    ? 'Lamp: ON'
+                    : data.tuya?.lamp === false
+                      ? 'Lamp: OFF'
+                      : 'Lamp: Standby'
+                }
+                className={`w-5 h-5 rounded-full flex items-center justify-center transition-all ${
+                  data.tuya?.lamp === true
+                    ? 'bg-amber-500/25 text-amber-300 border border-amber-400/50 shadow-[0_0_8px_rgba(251,191,36,0.45)]'
+                    : 'bg-white/[0.06] text-white/35 border border-white/10'
+                }`}
+              >
+                <Lightbulb className="w-3 h-3" />
+              </div>
+            </div>
           </div>
         </div>
 
