@@ -17,7 +17,6 @@ import {
   BookOpen,
   CheckCircle2,
   X,
-  Mail,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
@@ -1943,81 +1942,6 @@ export default function AmbientDashboard() {
                 </div>
               </div>
             </div>
-
-            {/* HARDWARE BATTERY FLEET */}
-            {data.battery &&
-              (data.battery.macbook ||
-                data.battery.iphone ||
-                data.battery.keyboard ||
-                data.battery.mouse ||
-                data.battery.airpods) && (
-                <div className="flex items-center gap-1.5 mt-3 pt-2.5 border-t border-white/[0.06] text-[11px] tabular-nums text-white/60 overflow-hidden flex-wrap">
-                  {data.battery.macbook && (
-                    <div
-                      title={`MacBook Air: ${data.battery.macbook.percent ?? '--'}%${data.battery.macbook.charging ? ' (Charging)' : ''}`}
-                      className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/[0.04] border border-white/[0.08]"
-                    >
-                      <Laptop className="w-3 h-3 text-sky-400" />
-                      <span className="font-semibold text-white/90">
-                        {data.battery.macbook.percent ?? '--'}%
-                      </span>
-                      {data.battery.macbook.charging && (
-                        <span className="text-amber-400 text-[10px] font-bold">⚡</span>
-                      )}
-                    </div>
-                  )}
-                  {data.battery.iphone && (
-                    <div
-                      title={`iPhone: ${data.battery.iphone.percent ?? '--'}%${data.battery.iphone.charging ? ' (Charging)' : ''}`}
-                      className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/[0.04] border border-white/[0.08]"
-                    >
-                      <Smartphone className="w-3 h-3 text-emerald-400" />
-                      <span className="font-semibold text-white/90">
-                        {data.battery.iphone.percent ?? '--'}%
-                      </span>
-                      {data.battery.iphone.charging && (
-                        <span className="text-amber-400 text-[10px] font-bold">⚡</span>
-                      )}
-                    </div>
-                  )}
-                  {data.battery.keyboard && (
-                    <div
-                      title={`Logitech Keyboard: ${data.battery.keyboard.percent ?? '--'}%`}
-                      className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/[0.04] border border-white/[0.08]"
-                    >
-                      <Keyboard className="w-3 h-3 text-purple-400" />
-                      <span className="font-semibold text-white/90">
-                        {data.battery.keyboard.percent ?? '--'}%
-                      </span>
-                    </div>
-                  )}
-                  {data.battery.mouse && (
-                    <div
-                      title={`Logi LIFT Mouse: ${data.battery.mouse.percent !== null && data.battery.mouse.percent !== undefined ? `${data.battery.mouse.percent}%` : 'Connected'}`}
-                      className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/[0.04] border border-white/[0.08]"
-                    >
-                      <Mouse className="w-3 h-3 text-indigo-400" />
-                      <span className="font-semibold text-white/90">
-                        {data.battery.mouse.percent !== null &&
-                        data.battery.mouse.percent !== undefined
-                          ? `${data.battery.mouse.percent}%`
-                          : 'Lift'}
-                      </span>
-                    </div>
-                  )}
-                  {data.battery.airpods && (
-                    <div
-                      title={`AirPods Pro: L:${data.battery.airpods.left ?? '--'}% R:${data.battery.airpods.right ?? '--'}%`}
-                      className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/[0.04] border border-white/[0.08]"
-                    >
-                      <Headphones className="w-3 h-3 text-teal-400" />
-                      <span className="font-semibold text-white/90">
-                        {data.battery.airpods.left ?? data.battery.airpods.right ?? '--'}%
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
           </GlassCard>
 
           {/* 2. 7-DAY SLEEP ARCHITECTURE (SMOOTH TELEMETRY LINE GRAPH) */}
@@ -2335,52 +2259,103 @@ export default function AmbientDashboard() {
             </div>
           </GlassCard>
 
-          {/* 4. INBOXES */}
+          {/* 4. HARDWARE & DEVICE FLEET */}
           <GlassCard className="flex flex-col shrink-0 !p-4 !py-3">
-            <div className="flex items-center gap-2 mb-2 shrink-0">
-              <Mail className="w-3.5 h-3.5 text-white/55" />
-              <span className="font-semibold text-xs text-white/55 uppercase tracking-widest">
-                Inboxes
+            <div className="flex items-center justify-between mb-2 shrink-0">
+              <div className="flex items-center gap-2">
+                <Battery className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="font-semibold text-xs text-white/60 uppercase tracking-widest">
+                  Device Fleet
+                </span>
+              </div>
+              <span className="text-[10px] text-white/40 tabular-nums">
+                {data.battery?.updatedAt
+                  ? `Live • ${new Date(data.battery.updatedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
+                  : 'Live'}
               </span>
             </div>
-            <div className="flex flex-col gap-2 tabular-nums">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-full bg-rose-500/20 flex items-center justify-center shrink-0">
-                    <Mail className="w-3.5 h-3.5 text-rose-400" />
+
+            <div className="grid grid-cols-4 gap-2 text-xs tabular-nums">
+              {/* 1. MacBook Air */}
+              <div className="p-2 rounded-xl bg-white/[0.03] border border-white/[0.07] flex flex-col justify-between">
+                <div className="flex items-center justify-between text-white/45 text-[11px] mb-1">
+                  <div className="flex items-center gap-1.5">
+                    <Laptop className="w-3.5 h-3.5 text-sky-400" />
+                    <span className="truncate">MacBook</span>
                   </div>
-                  <div className="flex flex-col">
-                    <span className="text-white/95 font-medium text-sm leading-tight">Personal</span>
-                    <span className="text-white/50 text-[11px]">Gmail</span>
-                  </div>
+                  {data.battery?.macbook?.charging && (
+                    <span className="text-amber-400 text-xs font-bold leading-none animate-pulse">⚡</span>
+                  )}
                 </div>
-                <div className="flex flex-col items-end">
-                  <span className="text-rose-400 font-medium text-sm leading-tight">
-                    {data.emails?.gmail?.unread || 0} Unread
-                  </span>
-                  <span className="text-white/50 text-[11px]">
-                    {data.emails?.gmail?.total || 0} Total
-                  </span>
+                <div className="text-lg font-light text-white tracking-tight">
+                  {data.battery?.macbook?.percent !== null && data.battery?.macbook?.percent !== undefined
+                    ? `${data.battery.macbook.percent}%`
+                    : '--%'}
                 </div>
+                <span className="text-[10px] text-white/40 truncate">
+                  {data.battery?.macbook?.charging
+                    ? 'Charging'
+                    : data.battery?.macbook?.powerSource === 'AC'
+                      ? 'Plugged In'
+                      : 'Battery'}
+                </span>
               </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-full bg-purple-500/20 flex items-center justify-center shrink-0">
-                    <GraduationCap className="w-3.5 h-3.5 text-purple-400" />
+
+              {/* 2. iPhone */}
+              <div className="p-2 rounded-xl bg-white/[0.03] border border-white/[0.07] flex flex-col justify-between">
+                <div className="flex items-center justify-between text-white/45 text-[11px] mb-1">
+                  <div className="flex items-center gap-1.5">
+                    <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="truncate">iPhone</span>
                   </div>
-                  <div className="flex flex-col">
-                    <span className="text-white/95 font-medium text-sm leading-tight">University</span>
-                    <span className="text-white/50 text-[11px]">Exchange</span>
-                  </div>
+                  {data.battery?.iphone?.charging && (
+                    <span className="text-amber-400 text-xs font-bold leading-none animate-pulse">⚡</span>
+                  )}
                 </div>
-                <div className="flex flex-col items-end">
-                  <span className="text-purple-400 font-medium text-sm leading-tight">
-                    {data.emails?.uni?.unread || 0} Unread
-                  </span>
-                  <span className="text-white/50 text-[11px]">
-                    {data.emails?.uni?.total || 0} Total
-                  </span>
+                <div className="text-lg font-light text-white tracking-tight">
+                  {data.battery?.iphone?.percent !== null && data.battery?.iphone?.percent !== undefined
+                    ? `${data.battery.iphone.percent}%`
+                    : '--%'}
                 </div>
+                <span className="text-[10px] text-white/40 truncate">
+                  {data.battery?.iphone?.charging ? 'Charging' : 'Active'}
+                </span>
+              </div>
+
+              {/* 3. Logitech Keyboard */}
+              <div className="p-2 rounded-xl bg-white/[0.03] border border-white/[0.07] flex flex-col justify-between">
+                <div className="flex items-center gap-1.5 text-white/45 text-[11px] mb-1">
+                  <Keyboard className="w-3.5 h-3.5 text-purple-400" />
+                  <span className="truncate">Keyboard</span>
+                </div>
+                <div className="text-lg font-light text-white tracking-tight">
+                  {data.battery?.keyboard?.percent !== null && data.battery?.keyboard?.percent !== undefined
+                    ? `${data.battery.keyboard.percent}%`
+                    : '--%'}
+                </div>
+                <span className="text-[10px] text-white/40 truncate">MX Keys</span>
+              </div>
+
+              {/* 4. Mouse / AirPods */}
+              <div className="p-2 rounded-xl bg-white/[0.03] border border-white/[0.07] flex flex-col justify-between">
+                <div className="flex items-center gap-1.5 text-white/45 text-[11px] mb-1">
+                  {data.battery?.airpods ? (
+                    <Headphones className="w-3.5 h-3.5 text-teal-400" />
+                  ) : (
+                    <Mouse className="w-3.5 h-3.5 text-indigo-400" />
+                  )}
+                  <span className="truncate">{data.battery?.airpods ? 'AirPods' : 'Mouse'}</span>
+                </div>
+                <div className="text-lg font-light text-white tracking-tight">
+                  {data.battery?.airpods
+                    ? `${data.battery.airpods.left ?? data.battery.airpods.right ?? '--'}%`
+                    : data.battery?.mouse?.percent !== null && data.battery?.mouse?.percent !== undefined
+                      ? `${data.battery.mouse.percent}%`
+                      : 'Active'}
+                </div>
+                <span className="text-[10px] text-white/40 truncate">
+                  {data.battery?.airpods ? 'AirPods Pro' : 'Logi LIFT'}
+                </span>
               </div>
             </div>
           </GlassCard>
@@ -2405,147 +2380,149 @@ export default function AmbientDashboard() {
                 {eventsLeftToday} left today
               </span>
             </div>
-            <div className="flex-1 overflow-hidden pr-2">
+            <div className="flex-1 min-h-0 flex flex-col justify-between overflow-hidden pr-2">
               {Object.values(groupedEvents).length > 0 ? (
-                Object.values(groupedEvents).map((group, gIdx) => (
-                  <div key={gIdx} className="mb-6 last:mb-0">
-                    {group.isToday ? (
-                      <div className="flex items-center justify-between mb-2 border-b border-sky-400/30 pb-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-sky-400 uppercase tracking-widest">
-                            Today
+                <div className="h-full flex flex-col justify-between">
+                  {Object.values(groupedEvents).map((group, gIdx) => (
+                    <div key={gIdx} className="flex-1 flex flex-col justify-around mb-2 last:mb-0">
+                      {group.isToday ? (
+                        <div className="flex items-center justify-between mb-1.5 border-b border-sky-400/30 pb-1.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-sky-400 uppercase tracking-widest">
+                              Today
+                            </span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse" />
+                          </div>
+                          <span className="text-[11px] font-medium text-sky-300/70">
+                            {now
+                              ? now.toLocaleDateString('en-GB', {
+                                  weekday: 'short',
+                                  day: 'numeric',
+                                  month: 'short',
+                                  timeZone: TZ,
+                                })
+                              : ''}
                           </span>
-                          <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse" />
                         </div>
-                        <span className="text-[11px] font-medium text-sky-300/70">
-                          {now
-                            ? now.toLocaleDateString('en-GB', {
-                                weekday: 'short',
-                                day: 'numeric',
-                                month: 'short',
-                                timeZone: TZ,
-                              })
-                            : ''}
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="text-xs font-semibold text-white/55 uppercase tracking-widest mb-2 border-b border-white/10 pb-2">
-                        {group.dateLabel}
-                      </div>
-                    )}
-                    <div className="flex flex-col">
-                      {group.items.map((ev, idx) => {
-                        const badge = getEventBadge(ev.summary);
-                        const BadgeIcon = badge.icon;
-                        const isUni = ev.calendar === 'Uni';
-                        const evTime = new Date(ev.start).toLocaleTimeString('en-GB', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          timeZone: TZ,
-                        });
-                        const nowMs = now ? now.getTime() : 0;
-                        const startMs = new Date(ev.start).getTime();
-                        const endMs = ev.end ? new Date(ev.end).getTime() : startMs + 3600000;
-                        const isActiveNow =
-                          now !== null && startMs <= nowMs && endMs > nowMs;
-                        const isPast = now !== null && endMs <= nowMs;
+                      ) : (
+                        <div className="text-xs font-semibold text-white/55 uppercase tracking-widest mb-1.5 border-b border-white/10 pb-1.5">
+                          {group.dateLabel}
+                        </div>
+                      )}
+                      <div className="flex flex-col flex-1 justify-around">
+                        {group.items.map((ev, idx) => {
+                          const badge = getEventBadge(ev.summary);
+                          const BadgeIcon = badge.icon;
+                          const isUni = ev.calendar === 'Uni';
+                          const evTime = new Date(ev.start).toLocaleTimeString('en-GB', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            timeZone: TZ,
+                          });
+                          const nowMs = now ? now.getTime() : 0;
+                          const startMs = new Date(ev.start).getTime();
+                          const endMs = ev.end ? new Date(ev.end).getTime() : startMs + 3600000;
+                          const isActiveNow =
+                            now !== null && startMs <= nowMs && endMs > nowMs;
+                          const isPast = now !== null && endMs <= nowMs;
 
-                        if (isPast) {
-                          return (
-                            <div
-                              key={idx}
-                              className="py-2.5 px-2 -mx-2 rounded-xl flex items-center justify-between gap-4 border-b border-white/[0.03] last:border-0 opacity-40 hover:opacity-80 transition-opacity"
-                            >
-                              <div className="flex items-center gap-4 min-w-0">
-                                <span className="w-[48px] text-sm font-medium tabular-nums text-white/40 shrink-0 line-through">
-                                  {evTime}
-                                </span>
-                                <div className="w-2 h-2 rounded-full shrink-0 bg-white/20" />
-                                <span className="text-lg font-medium text-white/50 truncate">
-                                  {ev.summary}
-                                </span>
-                                {ev.location && (
-                                  <span className="text-xs font-medium text-white/30 truncate hidden xl:inline">
-                                    • {ev.location}
+                          if (isPast) {
+                            return (
+                              <div
+                                key={idx}
+                                className="py-2.5 px-2 -mx-2 rounded-xl flex items-center justify-between gap-4 border-b border-white/[0.03] last:border-0 opacity-40 hover:opacity-80 transition-opacity"
+                              >
+                                <div className="flex items-center gap-4 min-w-0">
+                                  <span className="w-[48px] text-sm font-medium tabular-nums text-white/40 shrink-0 line-through">
+                                    {evTime}
                                   </span>
-                                )}
+                                  <div className="w-2 h-2 rounded-full shrink-0 bg-white/20" />
+                                  <span className="text-lg font-medium text-white/50 truncate">
+                                    {ev.summary}
+                                  </span>
+                                  {ev.location && (
+                                    <span className="text-xs font-medium text-white/30 truncate hidden xl:inline">
+                                      • {ev.location}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-white/[0.02] border border-white/[0.04] shrink-0 text-white/35">
+                                  <BadgeIcon className="w-3.5 h-3.5 opacity-50" />
+                                  {badge.label}
+                                </span>
                               </div>
-                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-white/[0.02] border border-white/[0.04] shrink-0 text-white/35">
-                                <BadgeIcon className="w-3.5 h-3.5 opacity-50" />
-                                {badge.label}
-                              </span>
-                            </div>
-                          );
-                        }
+                            );
+                          }
 
-                        if (isActiveNow) {
+                          if (isActiveNow) {
+                            return (
+                              <div
+                                key={idx}
+                                className="py-3 px-2 -mx-2 rounded-xl flex items-center justify-between gap-4 border-b border-white/[0.06] last:border-0 bg-emerald-500/[0.12] border border-emerald-500/25"
+                              >
+                                <div className="flex items-center gap-4 min-w-0">
+                                  <span className="w-[48px] text-sm font-semibold tabular-nums text-emerald-300 shrink-0">
+                                    {evTime}
+                                  </span>
+                                  <div className="w-2 h-2 rounded-full shrink-0 bg-emerald-400 animate-pulse" />
+                                  <span className="text-lg font-medium text-white truncate">
+                                    {ev.summary}
+                                  </span>
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-400/20 text-emerald-300 border border-emerald-400/30 shrink-0">
+                                    Live
+                                  </span>
+                                  {ev.location && (
+                                    <span className="text-xs font-medium text-white/60 truncate hidden xl:inline">
+                                      • {ev.location}
+                                    </span>
+                                  )}
+                                </div>
+                                <span
+                                  className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/[0.05] border border-white/[0.08] shrink-0 ${badge.color}`}
+                                >
+                                  <BadgeIcon className="w-3.5 h-3.5" />
+                                  {badge.label}
+                                </span>
+                              </div>
+                            );
+                          }
+
                           return (
                             <div
                               key={idx}
-                              className="py-3 px-2 -mx-2 rounded-xl flex items-center justify-between gap-4 border-b border-white/[0.06] last:border-0 bg-emerald-500/[0.12] border border-emerald-500/25"
+                              className="py-3 px-2 -mx-2 rounded-xl flex items-center justify-between gap-4 border-b border-white/[0.06] last:border-0"
                             >
                               <div className="flex items-center gap-4 min-w-0">
-                                <span className="w-[48px] text-sm font-semibold tabular-nums text-emerald-300 shrink-0">
+                                <span className="w-[48px] text-sm font-medium tabular-nums text-white/65 shrink-0">
                                   {evTime}
                                 </span>
-                                <div className="w-2 h-2 rounded-full shrink-0 bg-emerald-400 animate-pulse" />
-                                <span className="text-lg font-medium text-white truncate">
+                                <div
+                                  className={`w-2 h-2 rounded-full shrink-0 ${
+                                    isUni ? 'bg-purple-400' : 'bg-white/50'
+                                  }`}
+                                />
+                                <span className="text-lg font-medium text-white/95 truncate">
                                   {ev.summary}
                                 </span>
-                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-400/20 text-emerald-300 border border-emerald-400/30 shrink-0">
-                                  Live
-                                </span>
                                 {ev.location && (
-                                  <span className="text-xs font-medium text-white/60 truncate hidden xl:inline">
+                                  <span className="text-xs font-medium text-white/45 truncate hidden xl:inline">
                                     • {ev.location}
                                   </span>
                                 )}
                               </div>
                               <span
-                                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/[0.05] border border-white/[0.08] shrink-0 ${badge.color}`}
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/[0.04] border border-white/[0.07] shrink-0 ${badge.color}`}
                               >
                                 <BadgeIcon className="w-3.5 h-3.5" />
                                 {badge.label}
                               </span>
                             </div>
                           );
-                        }
-
-                        return (
-                          <div
-                            key={idx}
-                            className="py-3 px-2 -mx-2 rounded-xl flex items-center justify-between gap-4 border-b border-white/[0.06] last:border-0"
-                          >
-                            <div className="flex items-center gap-4 min-w-0">
-                              <span className="w-[48px] text-sm font-medium tabular-nums text-white/65 shrink-0">
-                                {evTime}
-                              </span>
-                              <div
-                                className={`w-2 h-2 rounded-full shrink-0 ${
-                                  isUni ? 'bg-purple-400' : 'bg-white/50'
-                                }`}
-                              />
-                              <span className="text-lg font-medium text-white/95 truncate">
-                                {ev.summary}
-                              </span>
-                              {ev.location && (
-                                <span className="text-xs font-medium text-white/45 truncate hidden xl:inline">
-                                  • {ev.location}
-                                </span>
-                              )}
-                            </div>
-                            <span
-                              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/[0.04] border border-white/[0.07] shrink-0 ${badge.color}`}
-                            >
-                              <BadgeIcon className="w-3.5 h-3.5" />
-                              {badge.label}
-                            </span>
-                          </div>
-                        );
-                      })}
+                        })}
+                      </div>
                     </div>
-                  </div>
-                ))
+                  ))}
+                </div>
               ) : (
                 <div className="text-sm text-white/50 m-auto flex items-center justify-center h-full">
                   No upcoming schedule items
@@ -2554,7 +2531,7 @@ export default function AmbientDashboard() {
             </div>
           </GlassCard>
 
-          {/* TASKS & REMINDERS (TWO BALANCED COLUMNS, ZERO SCROLLING) */}
+          {/* TASKS & REMINDERS (TWO BALANCED COLUMNS, AUTO-SIZED TO FIT SPACE) */}
           <GlassCard
             onClick={() => setManualModal('reminders')}
             className="flex flex-col flex-1 min-h-0 relative"
@@ -2562,7 +2539,7 @@ export default function AmbientDashboard() {
             <div className="absolute top-6 right-6 flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-white/[0.06] border border-white/10 text-white/55 text-[11px] font-medium uppercase tracking-widest">
               Press <ChevronDown className="w-3 h-3" />
             </div>
-            <div className="flex items-center gap-2.5 mb-4 shrink-0">
+            <div className="flex items-center gap-2.5 mb-3 shrink-0">
               <CheckCircle2 className="w-4 h-4 text-white/55" />
               <span className="font-semibold text-sm text-white/55 uppercase tracking-widest">
                 Tasks &amp; Reminders
@@ -2571,16 +2548,16 @@ export default function AmbientDashboard() {
                 {remindersLeftToday} left today
               </span>
             </div>
-            <div className="flex-1 overflow-hidden pr-2">
+            <div className="flex-1 min-h-0 overflow-hidden pr-2">
               {todayReminders.length > 0 ? (
-                <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
+                <div className="grid grid-cols-2 gap-x-8 h-full content-between py-1">
                   {todayReminders.map((item, idx) => {
                     const listStyle = getReminderListStyle(item.list || item.listName);
                     const dueMeta = getReminderDueMeta(item);
                     return (
                       <div
                         key={item.id || idx}
-                        className="py-2 px-2.5 rounded-xl flex items-center justify-between gap-3 border-b border-white/[0.05] hover:bg-white/[0.02] transition-colors"
+                        className="py-2.5 px-2.5 rounded-xl flex items-center justify-between gap-3 border-b border-white/[0.05] hover:bg-white/[0.02] transition-colors"
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <div

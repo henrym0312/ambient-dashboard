@@ -51,10 +51,26 @@ export async function GET() {
   }
 }
 
+function parsePercent(val: unknown): number | null {
+  if (val === null || val === undefined || val === '') return null;
+  if (typeof val === 'number') {
+    if (isNaN(val)) return null;
+    // If iOS Shortcut sent ratio 0.84 instead of 84%, scale by 100
+    return val <= 1 && val > 0 ? Math.round(val * 100) : Math.round(val);
+  }
+  if (typeof val === 'string') {
+    const cleaned = val.replace('%', '').trim();
+    const num = parseFloat(cleaned);
+    if (!isNaN(num)) {
+      return num <= 1 && num > 0 ? Math.round(num * 100) : Math.round(num);
+    }
+  }
+  return null;
+}
+
 export async function POST(req: Request) {
   try {
     const authHeader = req.headers.get('authorization');
-    // Allow either Bearer token check or secret query param for simpler iOS Shortcut automation
     const url = new URL(req.url);
     const secretQuery = url.searchParams.get('secret');
     const expectedSecret = process.env.CRON_SECRET || 'mySecretSyncKey123';
@@ -76,7 +92,6 @@ export async function POST(req: Request) {
     const nowIso = new Date().toISOString();
     const redis = await getRedis();
 
-    // Fetch existing fleet to merge incrementally
     let currentFleet: BatteryFleetData = {
       macbook: null,
       iphone: null,
@@ -94,22 +109,23 @@ export async function POST(req: Request) {
       // ignore
     }
 
-    // Check if payload is single device (e.g. from iPhone Shortcut: { device: 'iphone', percent: 84, charging: true })
+    // Check if payload is single device (e.g. from iPhone Shortcut)
     if (typeof body.device === 'string') {
       const dev = body.device.toLowerCase();
-      const percent = typeof body.percent === 'number' ? body.percent : typeof body.battery === 'number' ? body.battery : null;
+      const rawPercent = body.percent ?? body.battery ?? body.level ?? body.batteryLevel ?? body.value;
+      const percent = parsePercent(rawPercent);
       const charging = typeof body.charging === 'boolean' ? body.charging : undefined;
       const name = typeof body.name === 'string' ? body.name : undefined;
       const powerSource = typeof body.powerSource === 'string' ? body.powerSource : undefined;
 
-      if (dev === 'iphone') {
+      if (dev === 'iphone' || dev === 'phone' || dev === 'ios') {
         currentFleet.iphone = {
           percent,
           charging,
           name: name || 'iPhone',
           updatedAt: nowIso,
         };
-      } else if (dev === 'macbook') {
+      } else if (dev === 'macbook' || dev === 'mac') {
         currentFleet.macbook = {
           percent,
           charging,
@@ -133,39 +149,53 @@ export async function POST(req: Request) {
     } else {
       // Multi-device update from Mac sync script
       if (body.macbook && typeof body.macbook === 'object') {
+        const mb = body.macbook as Record<string, unknown>;
         currentFleet.macbook = {
-          ...(body.macbook as DeviceBatteryItem),
+          percent: parsePercent(mb.percent ?? mb.battery),
+          charging: typeof mb.charging === 'boolean' ? mb.charging : undefined,
+          powerSource: typeof mb.powerSource === 'string' ? mb.powerSource : undefined,
+          name: (mb.name as string) || 'MacBook Air',
           updatedAt: nowIso,
         };
       }
       if (body.iphone && typeof body.iphone === 'object') {
+        const ip = body.iphone as Record<string, unknown>;
         currentFleet.iphone = {
-          ...(body.iphone as DeviceBatteryItem),
+          percent: parsePercent(ip.percent ?? ip.battery),
+          charging: typeof ip.charging === 'boolean' ? ip.charging : undefined,
+          name: (ip.name as string) || 'iPhone',
           updatedAt: nowIso,
         };
       }
       if (body.keyboard && typeof body.keyboard === 'object') {
+        const kb = body.keyboard as Record<string, unknown>;
         currentFleet.keyboard = {
-          ...(body.keyboard as DeviceBatteryItem),
+          percent: parsePercent(kb.percent ?? kb.battery),
+          name: (kb.name as string) || 'Logitech Keyboard',
           updatedAt: nowIso,
         };
       }
       if (body.mouse && typeof body.mouse === 'object') {
+        const ms = body.mouse as Record<string, unknown>;
         currentFleet.mouse = {
-          ...(body.mouse as DeviceBatteryItem),
+          percent: parsePercent(ms.percent ?? ms.battery),
+          name: (ms.name as string) || 'Logi LIFT Mouse',
           updatedAt: nowIso,
         };
       }
       if (body.airpods && typeof body.airpods === 'object') {
+        const ap = body.airpods as Record<string, unknown>;
         currentFleet.airpods = {
-          ...(body.airpods as AirPodsBatteryItem),
+          left: parsePercent(ap.left),
+          right: parsePercent(ap.right),
+          case: parsePercent(ap.case),
+          name: (ap.name as string) || 'AirPods Pro',
           updatedAt: nowIso,
         };
       }
     }
 
     currentFleet.updatedAt = nowIso;
-
     await redis.set(REDIS_KEY, JSON.stringify(currentFleet));
 
     return NextResponse.json({ success: true, fleet: currentFleet });

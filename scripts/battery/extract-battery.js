@@ -7,7 +7,8 @@ function getMacBattery() {
     const pctMatch = out.match(/(\d+)%/);
     const percent = pctMatch ? parseInt(pctMatch[1], 10) : null;
     const isAC = out.includes('AC Power');
-    const isCharging = out.includes('charging') || (isAC && !out.includes('discharging'));
+    const isDischarging = /\bdischarging\b/.test(out);
+    const isCharging = isAC && !isDischarging && /\bcharging\b/.test(out);
     return {
       percent,
       charging: isCharging,
