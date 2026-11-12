@@ -17,12 +17,21 @@ export interface AirPodsBatteryItem {
   updatedAt: string;
 }
 
+export interface MediaNowPlaying {
+  title?: string;
+  artist?: string;
+  album?: string;
+  isPlaying?: boolean;
+  updatedAt?: string;
+}
+
 export interface BatteryFleetData {
   macbook?: DeviceBatteryItem | null;
   iphone?: DeviceBatteryItem | null;
   keyboard?: DeviceBatteryItem | null;
   mouse?: DeviceBatteryItem | null;
   airpods?: AirPodsBatteryItem | null;
+  media?: MediaNowPlaying | null;
   updatedAt?: string;
 }
 
@@ -192,6 +201,20 @@ export async function POST(req: Request) {
           name: (ap.name as string) || 'AirPods Pro',
           updatedAt: nowIso,
         };
+      }
+      if (body.media !== undefined) {
+        if (body.media && typeof body.media === 'object') {
+          const m = body.media as Record<string, unknown>;
+          currentFleet.media = {
+            title: typeof m.title === 'string' ? m.title : undefined,
+            artist: typeof m.artist === 'string' ? m.artist : undefined,
+            album: typeof m.album === 'string' ? m.album : undefined,
+            isPlaying: typeof m.isPlaying === 'boolean' ? m.isPlaying : false,
+            updatedAt: nowIso,
+          };
+        } else {
+          currentFleet.media = null;
+        }
       }
     }
 

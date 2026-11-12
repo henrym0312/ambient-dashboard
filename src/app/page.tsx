@@ -28,6 +28,7 @@ import {
   Footprints,
   Pill,
   Sparkles,
+  Music,
   Fan,
   Lightbulb,
   Laptop,
@@ -1733,48 +1734,80 @@ export default function AmbientDashboard() {
           onClick={() => setManualModal('calendar')}
           className="col-span-3 flex flex-col justify-center gap-1.5 !p-5 relative overflow-hidden transition-all duration-700"
         >
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <div
-                className={`w-2 h-2 rounded-full ${
-                  nextEventStatus.isActive
-                    ? 'bg-emerald-400 animate-pulse'
-                    : nextEvent
-                      ? 'bg-sky-400 animate-pulse'
-                      : 'bg-white/25'
-                }`}
-              />
-              <span className="text-xs font-semibold uppercase tracking-widest text-white/60">
-                {nextEventStatus.isActive ? 'NOW ACTIVE' : 'UP NEXT'}
-              </span>
-            </div>
-            {nextEventStatus.isSoon && (data.weather?.precipitation ?? 0) > 0 && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-sky-500/15 text-sky-300 border border-sky-400/25">
-                <Umbrella className="w-3 h-3" />
-                {data.weather.precipitation}mm
-              </span>
-            )}
-          </div>
-          <div className="text-xl font-medium text-white/95 truncate">
-            {nextEvent ? nextEvent.summary : 'Clear Schedule'}
-          </div>
-          <div className="flex items-center justify-between gap-2 text-sm font-medium text-white/55 tabular-nums">
-            <span>
-              {nextEvent ? getRelativeTime(nextEvent.start, nextEvent.end) : 'Relax'}
-            </span>
-            {nextEvent?.location && (
-              <span className="text-xs text-white/45 truncate max-w-[140px]">
-                {nextEvent.location}
-              </span>
-            )}
-          </div>
-          {nextEventStatus.isActive && (
-            <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10">
-              <div
-                className="h-full bg-emerald-400/80 transition-all duration-1000"
-                style={{ width: `${nextEventStatus.progressPct}%` }}
-              />
-            </div>
+          {data.battery?.media?.isPlaying ? (
+            <>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-pink-500 animate-pulse" />
+                  <span className="text-xs font-semibold uppercase tracking-widest text-pink-300 flex items-center gap-1.5">
+                    <Music className="w-3.5 h-3.5 animate-bounce" /> Now Playing
+                  </span>
+                </div>
+                {nextEvent && (
+                  <span className="text-[10px] text-white/50 truncate max-w-[130px] font-medium">
+                    Up next: {nextEvent.summary}
+                  </span>
+                )}
+              </div>
+              <div className="text-xl font-medium text-white/95 truncate">
+                {data.battery.media.title}
+              </div>
+              <div className="flex items-center justify-between gap-2 text-sm font-medium text-white/55 truncate">
+                <span className="truncate">{data.battery.media.artist}</span>
+                {data.battery.media.album && (
+                  <span className="text-xs text-white/40 truncate hidden xl:inline">
+                    • {data.battery.media.album}
+                  </span>
+                )}
+              </div>
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 opacity-80" />
+            </>
+          ) : (
+            <>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div
+                    className={`w-2 h-2 rounded-full ${
+                      nextEventStatus.isActive
+                        ? 'bg-emerald-400 animate-pulse'
+                        : nextEvent
+                          ? 'bg-sky-400 animate-pulse'
+                          : 'bg-white/25'
+                    }`}
+                  />
+                  <span className="text-xs font-semibold uppercase tracking-widest text-white/60">
+                    {nextEventStatus.isActive ? 'NOW ACTIVE' : 'UP NEXT'}
+                  </span>
+                </div>
+                {nextEventStatus.isSoon && (data.weather?.precipitation ?? 0) > 0 && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-sky-500/15 text-sky-300 border border-sky-400/25">
+                    <Umbrella className="w-3 h-3" />
+                    {data.weather.precipitation}mm
+                  </span>
+                )}
+              </div>
+              <div className="text-xl font-medium text-white/95 truncate">
+                {nextEvent ? nextEvent.summary : 'Clear Schedule'}
+              </div>
+              <div className="flex items-center justify-between gap-2 text-sm font-medium text-white/55 tabular-nums">
+                <span>
+                  {nextEvent ? getRelativeTime(nextEvent.start, nextEvent.end) : 'Relax'}
+                </span>
+                {nextEvent?.location && (
+                  <span className="text-xs text-white/45 truncate max-w-[140px]">
+                    {nextEvent.location}
+                  </span>
+                )}
+              </div>
+              {nextEventStatus.isActive && (
+                <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10">
+                  <div
+                    className="h-full bg-emerald-400/80 transition-all duration-1000"
+                    style={{ width: `${nextEventStatus.progressPct}%` }}
+                  />
+                </div>
+              )}
+            </>
           )}
         </GlassCard>
 

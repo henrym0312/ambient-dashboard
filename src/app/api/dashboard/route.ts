@@ -340,17 +340,26 @@ export async function GET() {
 
       let ringBattery: number | null = null;
       try {
-        const bRes = await fetch(
-          'https://api.ouraring.com/v2/usercollection/ring_battery_level',
+        let bRes = await fetch(
+          'https://api.ouraring.com/v2/usercollection/ring_battery_level?latest=true',
           { headers, signal: AbortSignal.timeout(5000) }
         ).catch(() => null);
+
+        if (!bRes || !bRes.ok) {
+          const twoDaysAgo = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
+          bRes = await fetch(
+            `https://api.ouraring.com/v2/usercollection/ring_battery_level?start_datetime=${encodeURIComponent(twoDaysAgo)}`,
+            { headers, signal: AbortSignal.timeout(5000) }
+          ).catch(() => null);
+        }
 
         if (bRes && bRes.ok) {
           const batteryJson = await bRes.json();
           const batteryItems: OuraBatteryItem[] = batteryJson.data || [];
           ringBattery = findLatestValue(batteryItems, (d) => d.battery_level);
         } else if (bRes && !bRes.ok) {
-          console.warn(`[Oura Battery HTTP ${bRes.status}]`);
+          const errText = await bRes.text().catch(() => '');
+          console.warn(`[Oura Battery HTTP ${bRes.status}]:`, errText);
         }
       } catch (err) {
         console.error('Oura battery fetch error:', err);

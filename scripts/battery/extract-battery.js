@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const { execSync } = require('child_process');
+const { execSync, execFileSync } = require('child_process');
 
 function getMacBattery() {
   try {
@@ -14,6 +14,31 @@ function getMacBattery() {
       charging: isCharging,
       powerSource: isAC ? 'AC' : 'Battery',
       name: 'MacBook Air',
+    };
+  } catch {
+    return null;
+  }
+}
+
+function getAppleMusic() {
+  try {
+    const isRunning = execSync('pgrep -x Music || true').toString().trim();
+    if (!isRunning) return null;
+    const script = `tell application "Music"
+if player state is playing then
+  return name of current track & "|||" & artist of current track & "|||" & album of current track
+else
+  return "PAUSED"
+end if
+end tell`;
+    const res = execFileSync('osascript', ['-e', script], { timeout: 2500 }).toString().trim();
+    if (res === 'PAUSED' || !res || res.includes('error')) return null;
+    const [title, artist, album] = res.split('|||');
+    return {
+      title: title || 'Unknown Title',
+      artist: artist || 'Unknown Artist',
+      album: album || '',
+      isPlaying: true,
     };
   } catch {
     return null;
@@ -89,6 +114,7 @@ function getBluetoothDevices() {
 const payload = {
   macbook: getMacBattery(),
   ...getBluetoothDevices(),
+  media: getAppleMusic(),
 };
 
 process.stdout.write(JSON.stringify(payload));
