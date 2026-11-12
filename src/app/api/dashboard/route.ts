@@ -362,8 +362,8 @@ export async function GET() {
         if (bRes && bRes.ok) {
           const batteryJson = await bRes.json();
           const batteryItems: OuraBatteryItem[] = batteryJson.data || [];
-          ringBattery = findLatestValue(batteryItems, (d) => d.battery_level);
-          debugBatteryStatus = `ok, items:${batteryItems.length}, val:${ringBattery}`;
+          ringBattery = findLatestValue(batteryItems, (d) => d.battery_level ?? (d as Record<string, unknown>).battery ?? (d as Record<string, unknown>).battery_percentage ?? (d as Record<string, unknown>).level);
+          debugBatteryStatus = `item0: ${JSON.stringify(batteryItems[0])}`;
         }
       } catch (err) {
         debugBatteryStatus = `err:${String(err)}`;
