@@ -32,6 +32,7 @@ interface OuraMetrics {
   steps: number | string;
   stress: string;
   battery?: number | null;
+  debugBattery?: string;
   history: OuraHistoryDay[];
 }
 
@@ -339,6 +340,7 @@ export async function GET() {
         : [];
 
       let ringBattery: number | null = null;
+      let debugBatteryStatus = '';
       try {
         let bRes = await fetch(
           'https://api.ouraring.com/v2/usercollection/ring_battery_level?latest=true',
@@ -346,23 +348,25 @@ export async function GET() {
         ).catch(() => null);
 
         if (!bRes || !bRes.ok) {
+          const status1 = bRes ? bRes.status : 'network_error';
           const twoDaysAgo = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
           bRes = await fetch(
             `https://api.ouraring.com/v2/usercollection/ring_battery_level?start_datetime=${encodeURIComponent(twoDaysAgo)}`,
             { headers, signal: AbortSignal.timeout(5000) }
           ).catch(() => null);
+          const status2 = bRes ? bRes.status : 'network_error';
+          const text = bRes ? await bRes.text().catch(() => '') : '';
+          debugBatteryStatus = `latest:${status1}, start_datetime:${status2}, body:${text.slice(0, 150)}`;
         }
 
         if (bRes && bRes.ok) {
           const batteryJson = await bRes.json();
           const batteryItems: OuraBatteryItem[] = batteryJson.data || [];
           ringBattery = findLatestValue(batteryItems, (d) => d.battery_level);
-        } else if (bRes && !bRes.ok) {
-          const errText = await bRes.text().catch(() => '');
-          console.warn(`[Oura Battery HTTP ${bRes.status}]:`, errText);
+          debugBatteryStatus = `ok, items:${batteryItems.length}, val:${ringBattery}`;
         }
       } catch (err) {
-        console.error('Oura battery fetch error:', err);
+        debugBatteryStatus = `err:${String(err)}`;
       }
 
       const readinessScore = findLatestValue(readinessData, (d) => d.score);
@@ -416,6 +420,7 @@ export async function GET() {
         stress:
           stressHigh !== null ? Math.round(stressHigh / 60).toString() : fallbackOura.stress,
         battery: ringBattery ?? fallbackOura.battery ?? null,
+        debugBattery: debugBatteryStatus,
         history: Object.values(dayMap),
       };
     } catch (e) {
