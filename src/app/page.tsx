@@ -338,6 +338,9 @@ function getOuraBatteryColor(battery: number | null | undefined): { text: string
 
 function isAcademicEvent(summary: string = ''): boolean {
   const s = summary.toLowerCase();
+  if (s.includes('walk') || s.includes('->') || s.includes('transit') || s.includes('transport')) {
+    return false;
+  }
   return s.includes('lecture') || s.includes('seminar') || s.includes('tutorial');
 }
 
@@ -588,8 +591,8 @@ export default function AmbientDashboard() {
     summary: string = ''
   ): { label: string; icon: LucideIcon; color: string; dot: string } => {
     const s = summary.toLowerCase();
-    if (s.includes('walk') || s.includes('->') || s.includes('transit')) {
-      return { label: 'Transit', icon: MapPin, color: 'text-neutral-300', dot: 'bg-neutral-400' };
+    if (s.includes('walk') || s.includes('->') || s.includes('transit') || s.includes('transport')) {
+      return { label: 'Transport', icon: MapPin, color: 'text-neutral-300', dot: 'bg-neutral-400' };
     }
     if (s.includes('lecture')) {
       return {
