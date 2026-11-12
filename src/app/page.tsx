@@ -970,15 +970,15 @@ export default function AmbientDashboard() {
     return generateDayCurve(now, data.meds?.taken);
   }, [now, data.meds?.taken]);
 
-  // Sparkline coordinates for main medication card (enlarged to fill card)
+  // Sparkline coordinates for main medication card (matched to Sleep Trend 380x148)
   const medSparkline = useMemo(() => {
     if (!pkCurve || pkCurve.points.length === 0) return null;
-    const width = 360;
-    const height = 100;
-    const padLeft = 8;
-    const padRight = 8;
-    const padTop = 14;
-    const padBottom = 16;
+    const width = 380;
+    const height = 148;
+    const padLeft = 10;
+    const padRight = 10;
+    const padTop = 16;
+    const padBottom = 24;
     const graphW = width - padLeft - padRight;
     const graphH = height - padTop - padBottom;
     const totalHours = Math.max(4, pkCurve.endHour - pkCurve.startHour);
@@ -2452,8 +2452,8 @@ export default function AmbientDashboard() {
 
             {/* MINI PK SPARKLINE GRAPH */}
             {medSparkline && (
-              <div className="w-full flex-1 min-h-[90px] max-h-[125px] relative my-1 select-none flex items-center">
-                <svg viewBox="0 0 360 100" className="w-full h-full min-h-[85px] overflow-visible">
+              <div className="w-full flex-1 min-h-0 flex items-center justify-center relative my-1 select-none">
+                <svg viewBox="0 0 380 148" className="w-full h-full min-h-[145px] overflow-visible">
                   <defs>
                     <linearGradient id="medAreaGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.32" />
@@ -2479,10 +2479,10 @@ export default function AmbientDashboard() {
                       />
                       <text
                         x={gh.x}
-                        y={medSparkline.padTop + medSparkline.graphH + 11}
+                        y={medSparkline.padTop + medSparkline.graphH + 14}
                         textAnchor="middle"
-                        fill="rgba(255,255,255,0.35)"
-                        fontSize="9"
+                        fill="rgba(255,255,255,0.45)"
+                        fontSize="10.5"
                         fontWeight="600"
                         className="font-mono tabular-nums"
                       >
@@ -2693,13 +2693,13 @@ export default function AmbientDashboard() {
                 {eventsLeftToday} left today
               </span>
             </div>
-            <div className="flex-1 min-h-0 flex flex-col justify-between overflow-hidden pr-2">
+            <div className="flex-1 min-h-0 flex flex-col overflow-hidden pr-2">
               {Object.values(groupedEvents).length > 0 ? (
-                <div className="h-full flex flex-col justify-between">
+                <div className="flex flex-col gap-3">
                   {Object.values(groupedEvents).map((group, gIdx) => (
-                    <div key={gIdx} className="flex-1 flex flex-col justify-around mb-2 last:mb-0">
+                    <div key={gIdx} className="flex flex-col">
                       {group.isToday ? (
-                        <div className="flex items-center justify-between mb-1.5 border-b border-sky-400/30 pb-1.5">
+                        <div className="flex items-center justify-between mb-1.5 border-b border-sky-400/30 pb-1">
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-bold text-sky-400 uppercase tracking-widest">
                               Today
@@ -2718,11 +2718,11 @@ export default function AmbientDashboard() {
                           </span>
                         </div>
                       ) : (
-                        <div className="text-xs font-semibold text-white/55 uppercase tracking-widest mb-1.5 border-b border-white/10 pb-1.5">
+                        <div className="text-xs font-semibold text-white/55 uppercase tracking-widest mb-1.5 border-b border-white/10 pb-1">
                           {group.dateLabel}
                         </div>
                       )}
-                      <div className="flex flex-col flex-1 justify-around">
+                      <div className="flex flex-col gap-0.5">
                         {group.items.map((ev, idx) => {
                           const badge = getEventBadge(ev.summary);
                           const BadgeIcon = badge.icon;
@@ -2743,23 +2743,23 @@ export default function AmbientDashboard() {
                             return (
                               <div
                                 key={idx}
-                                className="py-2.5 px-2 -mx-2 rounded-xl flex items-center justify-between gap-4 border-b border-white/[0.03] last:border-0 opacity-40 hover:opacity-80 transition-opacity"
+                                className="py-2 px-2.5 -mx-2 rounded-xl flex items-center justify-between gap-4 border-b border-white/[0.03] last:border-0 opacity-40 hover:opacity-80 transition-opacity"
                               >
-                                <div className="flex items-center gap-4 min-w-0">
-                                  <span className="w-[48px] text-sm font-medium tabular-nums text-white/40 shrink-0 line-through">
+                                <div className="flex items-center gap-3.5 min-w-0">
+                                  <span className="w-[54px] text-base font-medium tabular-nums text-white/40 shrink-0 line-through">
                                     {evTime}
                                   </span>
                                   <div className="w-2 h-2 rounded-full shrink-0 bg-white/20" />
-                                  <span className={`text-lg font-medium truncate ${isAcademicEvent(ev.summary) ? 'text-purple-300/60' : 'text-white/50'}`}>
+                                  <span className={`text-xl font-medium truncate ${isAcademicEvent(ev.summary) ? 'text-purple-300/60' : 'text-white/50'}`}>
                                     {ev.summary}
                                   </span>
                                   {ev.location && (
-                                    <span className="text-xs font-medium text-white/30 truncate hidden xl:inline">
+                                    <span className="text-sm font-medium text-white/30 truncate hidden xl:inline">
                                       • {ev.location}
                                     </span>
                                   )}
                                 </div>
-                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-white/[0.02] border border-white/[0.04] shrink-0 text-white/35">
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/[0.02] border border-white/[0.04] shrink-0 text-white/35">
                                   <BadgeIcon className="w-3.5 h-3.5 opacity-50" />
                                   {badge.label}
                                 </span>
@@ -2771,21 +2771,21 @@ export default function AmbientDashboard() {
                             return (
                               <div
                                 key={idx}
-                                className="py-3 px-2 -mx-2 rounded-xl flex items-center justify-between gap-4 border-b border-white/[0.06] last:border-0 bg-emerald-500/[0.12] border border-emerald-500/25"
+                                className="py-2 px-2.5 -mx-2 rounded-xl flex items-center justify-between gap-4 border-b border-white/[0.06] last:border-0 bg-emerald-500/[0.12] border border-emerald-500/25"
                               >
-                                <div className="flex items-center gap-4 min-w-0">
-                                  <span className="w-[48px] text-sm font-semibold tabular-nums text-emerald-300 shrink-0">
+                                <div className="flex items-center gap-3.5 min-w-0">
+                                  <span className="w-[54px] text-base font-semibold tabular-nums text-emerald-300 shrink-0">
                                     {evTime}
                                   </span>
                                   <div className="w-2 h-2 rounded-full shrink-0 bg-emerald-400 animate-pulse" />
-                                  <span className={`text-lg font-medium truncate ${isAcademicEvent(ev.summary) ? 'text-purple-200 font-semibold' : 'text-white'}`}>
+                                  <span className={`text-xl font-medium truncate ${isAcademicEvent(ev.summary) ? 'text-purple-200 font-semibold' : 'text-white'}`}>
                                     {ev.summary}
                                   </span>
                                   <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-400/20 text-emerald-300 border border-emerald-400/30 shrink-0">
                                     Live
                                   </span>
                                   {ev.location && (
-                                    <span className="text-xs font-medium text-white/60 truncate hidden xl:inline">
+                                    <span className="text-sm font-medium text-white/60 truncate hidden xl:inline">
                                       • {ev.location}
                                     </span>
                                   )}
@@ -2803,10 +2803,10 @@ export default function AmbientDashboard() {
                           return (
                             <div
                               key={idx}
-                              className="py-3 px-2 -mx-2 rounded-xl flex items-center justify-between gap-4 border-b border-white/[0.06] last:border-0"
+                              className="py-2 px-2.5 -mx-2 rounded-xl flex items-center justify-between gap-4 border-b border-white/[0.06] last:border-0"
                             >
-                              <div className="flex items-center gap-4 min-w-0">
-                                <span className="w-[48px] text-sm font-medium tabular-nums text-white/65 shrink-0">
+                              <div className="flex items-center gap-3.5 min-w-0">
+                                <span className="w-[54px] text-base font-medium tabular-nums text-white/65 shrink-0">
                                   {evTime}
                                 </span>
                                 <div
@@ -2814,11 +2814,11 @@ export default function AmbientDashboard() {
                                     isUni ? 'bg-purple-400' : 'bg-white/50'
                                   }`}
                                 />
-                                <span className={`text-lg font-medium truncate ${isAcademicEvent(ev.summary) ? 'text-purple-300 font-semibold drop-shadow-[0_0_8px_rgba(216,180,254,0.35)]' : 'text-white/95'}`}>
+                                <span className={`text-xl font-medium truncate ${isAcademicEvent(ev.summary) ? 'text-purple-300 font-semibold drop-shadow-[0_0_8px_rgba(216,180,254,0.35)]' : 'text-white/95'}`}>
                                   {ev.summary}
                                 </span>
                                 {ev.location && (
-                                  <span className="text-xs font-medium text-white/45 truncate hidden xl:inline">
+                                  <span className="text-sm font-medium text-white/45 truncate hidden xl:inline">
                                     • {ev.location}
                                   </span>
                                 )}
@@ -2863,24 +2863,24 @@ export default function AmbientDashboard() {
             </div>
             <div className="flex-1 min-h-0 overflow-hidden pr-2">
               {todayReminders.length > 0 ? (
-                <div className="grid grid-cols-2 gap-x-8 h-full content-between py-1">
+                <div className="grid grid-cols-2 gap-x-8 gap-y-1.5 content-start py-0.5">
                   {todayReminders.map((item, idx) => {
                     const listStyle = getReminderListStyle(item.list || item.listName);
                     const dueMeta = getReminderDueMeta(item);
                     return (
                       <div
                         key={item.id || idx}
-                        className="py-2.5 px-2.5 rounded-xl flex items-center justify-between gap-3 border-b border-white/[0.05] hover:bg-white/[0.02] transition-colors"
+                        className="py-2 px-2.5 rounded-xl flex items-center justify-between gap-3 border-b border-white/[0.05] hover:bg-white/[0.02] transition-colors"
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <div
-                            className={`w-3 h-3 rounded-full border-2 shrink-0 ${listStyle.border} bg-transparent`}
+                            className={`w-3.5 h-3.5 rounded-full border-2 shrink-0 ${listStyle.border} bg-transparent`}
                           />
                           <div className="flex flex-col min-w-0">
-                            <span className="text-base font-medium text-white/95 truncate leading-tight">
+                            <span className="text-lg font-medium text-white/95 truncate leading-snug">
                               {item.title || item.text}
                             </span>
-                            <span className={`text-[11px] font-medium capitalize ${listStyle.color}`}>
+                            <span className={`text-xs font-medium capitalize ${listStyle.color}`}>
                               {listStyle.name}
                             </span>
                           </div>
