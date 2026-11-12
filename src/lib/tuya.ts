@@ -159,8 +159,8 @@ async function fetchDeviceState(
 }
 
 export async function getTuyaDevices(): Promise<TuyaDevicesState> {
-  const clientId = process.env.TUYA_CLIENT_ID || 'dgpagf3kwwgpwxhkgjy4';
-  const secretKey = process.env.TUYA_SECRET_KEY || '42cd3037778d48f8abf7b97d14bc5cf8';
+  const clientId = process.env.TUYA_CLIENT_ID || 'cfx3ss9m3jj57t5sen4s';
+  const secretKey = process.env.TUYA_SECRET_KEY || 'c794aeaa95bb49c08f3c238cdff26442';
   const fanDeviceId = process.env.TUYA_FAN_DEVICE_ID || 'bfdf661c3db5909ad4eokx';
   const lampDeviceId = process.env.TUYA_LAMP_DEVICE_ID || 'bfcadb0a2b913a58cfxhq4';
   const host = process.env.TUYA_HOST || 'https://openapi.tuyaeu.com';
