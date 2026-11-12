@@ -1669,7 +1669,7 @@ export default function AmbientDashboard() {
             )}
 
             {/* TUYA SMART PLUGS (FAN & LAMP) */}
-            <div className="flex items-center gap-2 shrink-0 ml-1">
+            <div className="flex items-center gap-2.5 shrink-0 ml-1.5">
               {/* Fan Circle */}
               <div
                 title={
@@ -1679,14 +1679,14 @@ export default function AmbientDashboard() {
                       ? 'Fan: OFF'
                       : 'Fan: Standby'
                 }
-                className={`w-7 h-7 rounded-full flex items-center justify-center transition-all duration-500 ${
+                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-500 ${
                   data.tuya?.fan === true
-                    ? 'bg-cyan-500/25 text-cyan-300 border border-cyan-400/60 shadow-[0_0_12px_rgba(34,211,238,0.5)]'
+                    ? 'bg-cyan-500/25 text-cyan-300 border border-cyan-400/60 shadow-[0_0_14px_rgba(34,211,238,0.55)]'
                     : 'bg-white/[0.05] text-white/30 border border-white/10'
                 }`}
               >
                 <Fan
-                  className={`w-4 h-4 ${
+                  className={`w-5 h-5 ${
                     data.tuya?.fan === true ? 'animate-spin [animation-duration:2.5s]' : ''
                   }`}
                 />
@@ -1701,13 +1701,13 @@ export default function AmbientDashboard() {
                       ? 'Lamp: OFF'
                       : 'Lamp: Standby'
                 }
-                className={`w-7 h-7 rounded-full flex items-center justify-center transition-all duration-500 ${
+                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-500 ${
                   data.tuya?.lamp === true
-                    ? 'bg-amber-500/25 text-amber-300 border border-amber-400/60 shadow-[0_0_12px_rgba(251,191,36,0.5)]'
+                    ? 'bg-amber-500/25 text-amber-300 border border-amber-400/60 shadow-[0_0_14px_rgba(251,191,36,0.55)]'
                     : 'bg-white/[0.05] text-white/30 border border-white/10'
                 }`}
               >
-                <Lightbulb className="w-4 h-4" />
+                <Lightbulb className="w-5 h-5" />
               </div>
             </div>
           </div>
