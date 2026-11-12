@@ -477,7 +477,7 @@ export default function AmbientDashboard() {
     };
 
     fetchDashboard();
-    const interval = setInterval(fetchDashboard, 300000);
+    const interval = setInterval(fetchDashboard, 15000);
     return () => clearInterval(interval);
   }, []);
 
@@ -1669,7 +1669,7 @@ export default function AmbientDashboard() {
             )}
 
             {/* TUYA SMART PLUGS (FAN & LAMP) */}
-            <div className="flex items-center gap-1.5 shrink-0 ml-0.5">
+            <div className="flex items-center gap-2 shrink-0 ml-1">
               {/* Fan Circle */}
               <div
                 title={
@@ -1679,15 +1679,15 @@ export default function AmbientDashboard() {
                       ? 'Fan: OFF'
                       : 'Fan: Standby'
                 }
-                className={`w-5 h-5 rounded-full flex items-center justify-center transition-all ${
+                className={`w-7 h-7 rounded-full flex items-center justify-center transition-all duration-500 ${
                   data.tuya?.fan === true
-                    ? 'bg-cyan-500/25 text-cyan-300 border border-cyan-400/50 shadow-[0_0_8px_rgba(34,211,238,0.45)]'
-                    : 'bg-white/[0.06] text-white/35 border border-white/10'
+                    ? 'bg-cyan-500/25 text-cyan-300 border border-cyan-400/60 shadow-[0_0_12px_rgba(34,211,238,0.5)]'
+                    : 'bg-white/[0.05] text-white/30 border border-white/10'
                 }`}
               >
                 <Fan
-                  className={`w-3 h-3 ${
-                    data.tuya?.fan === true ? 'animate-spin [animation-duration:3s]' : ''
+                  className={`w-4 h-4 ${
+                    data.tuya?.fan === true ? 'animate-spin [animation-duration:2.5s]' : ''
                   }`}
                 />
               </div>
@@ -1701,13 +1701,13 @@ export default function AmbientDashboard() {
                       ? 'Lamp: OFF'
                       : 'Lamp: Standby'
                 }
-                className={`w-5 h-5 rounded-full flex items-center justify-center transition-all ${
+                className={`w-7 h-7 rounded-full flex items-center justify-center transition-all duration-500 ${
                   data.tuya?.lamp === true
-                    ? 'bg-amber-500/25 text-amber-300 border border-amber-400/50 shadow-[0_0_8px_rgba(251,191,36,0.45)]'
-                    : 'bg-white/[0.06] text-white/35 border border-white/10'
+                    ? 'bg-amber-500/25 text-amber-300 border border-amber-400/60 shadow-[0_0_12px_rgba(251,191,36,0.5)]'
+                    : 'bg-white/[0.05] text-white/30 border border-white/10'
                 }`}
               >
-                <Lightbulb className="w-3 h-3" />
+                <Lightbulb className="w-4 h-4" />
               </div>
             </div>
           </div>
