@@ -31,6 +31,11 @@ import {
   Sparkles,
   Fan,
   Lightbulb,
+  Laptop,
+  Smartphone,
+  Keyboard,
+  Mouse,
+  Headphones,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -38,6 +43,7 @@ import {
   computePKStats,
   generateDayCurve,
 } from '@/lib/meds';
+import type { BatteryFleetData } from '@/app/api/battery/route';
 
 const TZ = 'Europe/London';
 
@@ -132,6 +138,7 @@ interface DashboardState {
   gold: GoldData;
   meds: MedLogPayload;
   tuya?: TuyaState;
+  battery?: BatteryFleetData | null;
   updatedAt?: string;
 }
 
@@ -376,6 +383,7 @@ export default function AmbientDashboard() {
     },
     meds: { date: '', taken: {} },
     tuya: { fan: null, lamp: null },
+    battery: null,
   });
 
   useEffect(() => {
@@ -390,11 +398,12 @@ export default function AmbientDashboard() {
   useEffect(() => {
     const fetchDashboard = async () => {
       try {
-        const [dashRes, remRes, emailRes, medRes] = await Promise.allSettled([
+        const [dashRes, remRes, emailRes, medRes, batRes] = await Promise.allSettled([
           fetch('/api/dashboard', { cache: 'no-store' }),
           fetch('/api/reminders', { cache: 'no-store' }),
           fetch('/api/emails', { cache: 'no-store' }),
           fetch('/api/meds', { cache: 'no-store' }),
+          fetch('/api/battery', { cache: 'no-store' }),
         ]);
 
         let anySuccess = false;
@@ -451,6 +460,14 @@ export default function AmbientDashboard() {
           const medJson = (await medRes.value.json()) as MedLogPayload;
           if (medJson && medJson.taken) {
             updates.meds = medJson;
+            anySuccess = true;
+          }
+        }
+
+        if (batRes.status === 'fulfilled' && batRes.value.ok) {
+          const batJson = (await batRes.value.json()) as BatteryFleetData;
+          if (batJson) {
+            updates.battery = batJson;
             anySuccess = true;
           }
         }
@@ -1926,6 +1943,81 @@ export default function AmbientDashboard() {
                 </div>
               </div>
             </div>
+
+            {/* HARDWARE BATTERY FLEET */}
+            {data.battery &&
+              (data.battery.macbook ||
+                data.battery.iphone ||
+                data.battery.keyboard ||
+                data.battery.mouse ||
+                data.battery.airpods) && (
+                <div className="flex items-center gap-1.5 mt-3 pt-2.5 border-t border-white/[0.06] text-[11px] tabular-nums text-white/60 overflow-hidden flex-wrap">
+                  {data.battery.macbook && (
+                    <div
+                      title={`MacBook Air: ${data.battery.macbook.percent ?? '--'}%${data.battery.macbook.charging ? ' (Charging)' : ''}`}
+                      className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/[0.04] border border-white/[0.08]"
+                    >
+                      <Laptop className="w-3 h-3 text-sky-400" />
+                      <span className="font-semibold text-white/90">
+                        {data.battery.macbook.percent ?? '--'}%
+                      </span>
+                      {data.battery.macbook.charging && (
+                        <span className="text-amber-400 text-[10px] font-bold">⚡</span>
+                      )}
+                    </div>
+                  )}
+                  {data.battery.iphone && (
+                    <div
+                      title={`iPhone: ${data.battery.iphone.percent ?? '--'}%${data.battery.iphone.charging ? ' (Charging)' : ''}`}
+                      className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/[0.04] border border-white/[0.08]"
+                    >
+                      <Smartphone className="w-3 h-3 text-emerald-400" />
+                      <span className="font-semibold text-white/90">
+                        {data.battery.iphone.percent ?? '--'}%
+                      </span>
+                      {data.battery.iphone.charging && (
+                        <span className="text-amber-400 text-[10px] font-bold">⚡</span>
+                      )}
+                    </div>
+                  )}
+                  {data.battery.keyboard && (
+                    <div
+                      title={`Logitech Keyboard: ${data.battery.keyboard.percent ?? '--'}%`}
+                      className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/[0.04] border border-white/[0.08]"
+                    >
+                      <Keyboard className="w-3 h-3 text-purple-400" />
+                      <span className="font-semibold text-white/90">
+                        {data.battery.keyboard.percent ?? '--'}%
+                      </span>
+                    </div>
+                  )}
+                  {data.battery.mouse && (
+                    <div
+                      title={`Logi LIFT Mouse: ${data.battery.mouse.percent !== null && data.battery.mouse.percent !== undefined ? `${data.battery.mouse.percent}%` : 'Connected'}`}
+                      className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/[0.04] border border-white/[0.08]"
+                    >
+                      <Mouse className="w-3 h-3 text-indigo-400" />
+                      <span className="font-semibold text-white/90">
+                        {data.battery.mouse.percent !== null &&
+                        data.battery.mouse.percent !== undefined
+                          ? `${data.battery.mouse.percent}%`
+                          : 'Lift'}
+                      </span>
+                    </div>
+                  )}
+                  {data.battery.airpods && (
+                    <div
+                      title={`AirPods Pro: L:${data.battery.airpods.left ?? '--'}% R:${data.battery.airpods.right ?? '--'}%`}
+                      className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/[0.04] border border-white/[0.08]"
+                    >
+                      <Headphones className="w-3 h-3 text-teal-400" />
+                      <span className="font-semibold text-white/90">
+                        {data.battery.airpods.left ?? data.battery.airpods.right ?? '--'}%
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
           </GlassCard>
 
           {/* 2. 7-DAY SLEEP ARCHITECTURE (SMOOTH TELEMETRY LINE GRAPH) */}
@@ -2119,6 +2211,12 @@ export default function AmbientDashboard() {
                   {!d.isTaken && <span className="opacity-60 text-[10px]">{d.schedTime}</span>}
                 </div>
               ))}
+              {pkStats?.nextDoseCountdown && (
+                <div className="px-2 py-0.5 rounded-md text-[10.5px] font-medium tabular-nums border bg-sky-500/10 border-sky-500/25 text-sky-300 flex items-center gap-1">
+                  <span className="opacity-75">⏱</span>
+                  <span>{pkStats.nextDoseCountdown}</span>
+                </div>
+              )}
             </div>
 
             {/* MINI PK SPARKLINE GRAPH */}
@@ -2222,9 +2320,17 @@ export default function AmbientDashboard() {
                   </span>
                 )}
               </div>
+              {pkStats?.focusWindow && (
+                <div className="flex items-center gap-1 text-sky-300/90 font-medium">
+                  <span className="text-white/35">Focus</span>
+                  <span>{pkStats.focusWindow}</span>
+                </div>
+              )}
               <div className="flex items-center gap-1.5">
                 <span className="text-white/35">Clear</span>
-                <span className="text-sky-300/80 font-medium">{pkStats?.clearTime || '--:--'}</span>
+                <span className="text-sky-300/80 font-medium">
+                  {pkStats?.sleepClearTime ? `${pkStats.sleepClearTime}` : pkStats?.clearTime || '--:--'}
+                </span>
               </div>
             </div>
           </GlassCard>

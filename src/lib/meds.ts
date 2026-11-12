@@ -70,6 +70,10 @@ export interface PKStats {
   clearTime: string;
   doses: DoseStatus[];
   latestDoseTime: string | null;
+  focusWindow?: string | null;
+  nextDoseCountdown?: string | null;
+  sleepClearTime?: string | null;
+  inFocusZone: boolean;
   updatedAt?: string;
 }
 
@@ -219,6 +223,77 @@ export function computePKStats(now: Date, takenMap: Record<string, string[]> = {
     };
   });
 
+  // 3. Optimal Focus Window (concentration >= 20.0 ng/mL)
+  let focusStart: Date | null = null;
+  let focusEnd: Date | null = null;
+  for (
+    const d = new Date(startOfToday);
+    d <= endOfToday;
+    d.setMinutes(d.getMinutes() + 5)
+  ) {
+    const c = getTotalConcentration(d, takenMap);
+    if (c >= 20.0) {
+      if (!focusStart) focusStart = new Date(d);
+      focusEnd = new Date(d);
+    }
+  }
+
+  let focusWindow: string | null = null;
+  if (focusStart && focusEnd && focusEnd.getTime() > focusStart.getTime()) {
+    focusWindow = `${focusStart.toLocaleTimeString('en-GB', {
+      hour: '2-digit',
+      minute: '2-digit',
+    })} – ${focusEnd.toLocaleTimeString('en-GB', {
+      hour: '2-digit',
+      minute: '2-digit',
+    })}`;
+  }
+
+  // 4. Next Dose Countdown
+  let nextDoseCountdown: string | null = null;
+  const untakenDose = doses.find((d) => !d.isTaken);
+  if (untakenDose) {
+    const [sH, sM] = untakenDose.schedTime.split(':').map(Number);
+    const doseDate = new Date(now);
+    doseDate.setHours(sH, sM, 0, 0);
+    const diffMs = doseDate.getTime() - now.getTime();
+    const diffMins = Math.round(diffMs / 60000);
+
+    if (diffMins > 60) {
+      const hrs = Math.floor(diffMins / 60);
+      const mins = diffMins % 60;
+      nextDoseCountdown = `${untakenDose.shortName} in ${hrs}h ${mins > 0 ? `${mins}m` : ''}`.trim();
+    } else if (diffMins > 0) {
+      nextDoseCountdown = `${untakenDose.shortName} in ${diffMins}m`;
+    } else if (diffMins >= -30) {
+      nextDoseCountdown = `${untakenDose.shortName} due now`;
+    } else {
+      nextDoseCountdown = `${untakenDose.shortName} (${Math.abs(diffMins)}m late)`;
+    }
+  } else if (doses.some((d) => d.isTaken)) {
+    nextDoseCountdown = 'All doses complete ✓';
+  }
+
+  // 5. Sleep Clearance (< 5.0 ng/mL for uninhibited sleep onset)
+  let sleepClearTime: string | null = null;
+  if (latestDoseTime && peakDate) {
+    const sleepScanStart = new Date(peakDate.getTime() + 60 * 60 * 1000);
+    const sleepScanEnd = new Date(startOfToday.getTime() + 36 * 3600 * 1000);
+    for (
+      const d = new Date(sleepScanStart);
+      d <= sleepScanEnd;
+      d.setMinutes(d.getMinutes() + 5)
+    ) {
+      if (getTotalConcentration(d, takenMap) <= 5.0) {
+        sleepClearTime = d.toLocaleTimeString('en-GB', {
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+        break;
+      }
+    }
+  }
+
   return {
     currentLevel,
     peakTime: peakStr,
@@ -226,6 +301,10 @@ export function computePKStats(now: Date, takenMap: Record<string, string[]> = {
     clearTime: clearStr,
     doses,
     latestDoseTime: latestDoseTime ? latestDoseTime.toISOString() : null,
+    focusWindow,
+    nextDoseCountdown,
+    sleepClearTime,
+    inFocusZone: currentLevel >= 20.0,
   };
 }
 
