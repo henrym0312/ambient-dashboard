@@ -281,12 +281,64 @@ function getWeatherIcon(
   };
 }
 
-function getScoreDotColor(score: number | string): string {
+function getBiometricScoreColor(score: number | string | undefined | null): { text: string; dot: string; bg: string; border: string } {
   const num = typeof score === 'number' ? score : Number(score);
-  if (isNaN(num)) return 'bg-white/20';
-  if (num >= 85) return 'bg-emerald-400';
-  if (num >= 70) return 'bg-sky-400';
-  return 'bg-amber-400';
+  if (isNaN(num) || score === undefined || score === null || score === '--') {
+    return { text: 'text-white/60', dot: 'bg-white/20', bg: 'bg-white/[0.04]', border: 'border-white/10' };
+  }
+  // User condition: 0-60: Red; 61-79: Yellow; 80-100: Green
+  if (num >= 80) {
+    return { text: 'text-emerald-400', dot: 'bg-emerald-400', bg: 'bg-emerald-500/15', border: 'border-emerald-500/30' };
+  }
+  if (num >= 61) {
+    return { text: 'text-amber-400', dot: 'bg-amber-400', bg: 'bg-amber-500/15', border: 'border-amber-500/30' };
+  }
+  return { text: 'text-rose-400', dot: 'bg-rose-400', bg: 'bg-rose-500/15', border: 'border-rose-500/30' };
+}
+
+function getScoreDotColor(score: number | string): string {
+  return getBiometricScoreColor(score).dot;
+}
+
+function getSleepTrendDurationColor(hours: number): { hex: string; text: string; bg: string; border: string } {
+  // User condition: 0-5hrs: Red; 5-7: Yellow; 7+: Green
+  if (hours >= 7) {
+    return { hex: '#34d399', text: 'text-emerald-400', bg: 'bg-emerald-500/15', border: 'border-emerald-500/30' };
+  }
+  if (hours >= 5) {
+    return { hex: '#fbbf24', text: 'text-amber-400', bg: 'bg-amber-500/15', border: 'border-amber-500/30' };
+  }
+  return { hex: '#f43f5e', text: 'text-rose-400', bg: 'bg-rose-500/15', border: 'border-rose-500/30' };
+}
+
+function getDeviceBatteryColor(percent: number | null | undefined): { text: string } {
+  if (percent === null || percent === undefined || isNaN(percent)) {
+    return { text: 'text-white/70' };
+  }
+  // User condition: 0-30: Red; 31-60: yellow; 61+: Green
+  if (percent >= 61) {
+    return { text: 'text-emerald-400 font-normal' };
+  }
+  if (percent >= 31) {
+    return { text: 'text-amber-400 font-normal' };
+  }
+  return { text: 'text-rose-400 font-normal' };
+}
+
+function getOuraBatteryColor(battery: number | null | undefined): { text: string; bg: string; border: string; icon: string } {
+  if (battery === null || battery === undefined || isNaN(battery)) {
+    return { text: 'text-white/50', bg: 'bg-white/[0.04]', border: 'border-white/10', icon: 'text-white/40' };
+  }
+  // User condition: 0-39: Red; 40-80: Green; 80-100: Red
+  if (battery >= 40 && battery <= 80) {
+    return { text: 'text-emerald-300', bg: 'bg-emerald-500/15', border: 'border-emerald-500/30', icon: 'text-emerald-400' };
+  }
+  return { text: 'text-rose-300', bg: 'bg-rose-500/15', border: 'border-rose-500/30', icon: 'text-rose-400' };
+}
+
+function isAcademicEvent(summary: string = ''): boolean {
+  const s = summary.toLowerCase();
+  return s.includes('lecture') || s.includes('seminar') || s.includes('tutorial');
 }
 
 function formatSleepDuration(hours: number, formattedTime?: string): string {
@@ -1076,7 +1128,7 @@ export default function AmbientDashboard() {
                       </div>
                       <div className={`w-3 h-3 rounded-full shrink-0 ${badge.dot}`} />
                       <div className="flex flex-col flex-1 min-w-0">
-                        <span className="font-medium text-xl text-white/95 truncate">
+                        <span className={`font-medium text-xl truncate ${isAcademicEvent(e.summary) ? 'text-purple-300 font-semibold' : 'text-white/95'}`}>
                           {e.summary}
                         </span>
                         {e.location && (
@@ -1113,26 +1165,26 @@ export default function AmbientDashboard() {
                 </div>
 
                 <div className="flex items-center gap-3">
-                  {data.oura?.battery !== undefined && data.oura?.battery !== null && (
-                    <div
-                      className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-sm font-semibold tabular-nums ${
-                        data.oura.battery >= 40
-                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-                          : data.oura.battery >= 20
-                            ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
-                            : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
-                      }`}
-                    >
-                      <Battery className="w-4 h-4" />
-                      <span>Ring Battery: {data.oura.battery}%</span>
-                    </div>
-                  )}
+                  {data.oura?.battery !== undefined && data.oura?.battery !== null && (() => {
+                    const ouraCol = getOuraBatteryColor(data.oura.battery);
+                    return (
+                      <div
+                        className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-sm font-semibold tabular-nums ${ouraCol.bg} ${ouraCol.border} ${ouraCol.text}`}
+                      >
+                        <Battery className={`w-4 h-4 ${ouraCol.icon}`} />
+                        <span>Ring Battery: {data.oura.battery}%</span>
+                      </div>
+                    );
+                  })()}
 
-                  {sleepStats.avgHours && (
-                    <div className="px-3.5 py-1.5 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-sm font-semibold tabular-nums">
-                      7d Avg: {sleepStats.avgHours}h
-                    </div>
-                  )}
+                  {sleepStats.avgHours && (() => {
+                    const avgCol = getSleepTrendDurationColor(Number(sleepStats.avgHours));
+                    return (
+                      <div className={`px-3.5 py-1.5 rounded-xl border text-sm font-semibold tabular-nums ${avgCol.bg} ${avgCol.border} ${avgCol.text}`}>
+                        7d Avg: {sleepStats.avgHours}h
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -1147,7 +1199,9 @@ export default function AmbientDashboard() {
                       className={`w-2.5 h-2.5 rounded-full ${getScoreDotColor(data.oura.readiness)}`}
                     />
                   </div>
-                  <div className="text-5xl font-light text-white">{data.oura.readiness}</div>
+                  <div className={`text-5xl font-light ${getBiometricScoreColor(data.oura.readiness).text}`}>
+                    {data.oura.readiness}
+                  </div>
                 </div>
 
                 <div className="bg-white/[0.04] border border-white/[0.08] p-5 rounded-2xl flex flex-col justify-between">
@@ -1159,7 +1213,9 @@ export default function AmbientDashboard() {
                       className={`w-2.5 h-2.5 rounded-full ${getScoreDotColor(data.oura.sleep)}`}
                     />
                   </div>
-                  <div className="text-5xl font-light text-white">{data.oura.sleep}</div>
+                  <div className={`text-5xl font-light ${getBiometricScoreColor(data.oura.sleep).text}`}>
+                    {data.oura.sleep}
+                  </div>
                 </div>
 
                 <div className="bg-white/[0.04] border border-white/[0.08] p-5 rounded-2xl flex flex-col justify-between">
@@ -1718,7 +1774,13 @@ export default function AmbientDashboard() {
               </span>
             )}
           </div>
-          <div className="text-base xl:text-lg font-medium text-white/95 truncate">
+          <div
+            className={`text-base xl:text-lg font-medium truncate ${
+              nextEvent && isAcademicEvent(nextEvent.summary)
+                ? 'text-purple-300 font-semibold'
+                : 'text-white/95'
+            }`}
+          >
             {nextEvent ? nextEvent.summary : 'Clear Schedule'}
           </div>
           <div className="flex items-center justify-between gap-1 text-xs font-medium text-white/55 tabular-nums">
@@ -1775,7 +1837,15 @@ export default function AmbientDashboard() {
           </div>
 
           <div className="flex items-baseline justify-between gap-1 my-0.5 tabular-nums">
-            <span className="text-2xl xl:text-3xl font-light text-white tracking-tight">
+            <span
+              className={`text-2xl xl:text-3xl font-light tracking-tight ${
+                data.gold && data.gold.currentValue > 0
+                  ? data.gold.isProfit
+                    ? 'text-emerald-400'
+                    : 'text-rose-400'
+                  : 'text-white'
+              }`}
+            >
               {data.gold?.currentValue ? `£${data.gold.currentValue.toFixed(2)}` : '£--'}
             </span>
             {data.gold && data.gold.currentValue > 0 && (
@@ -1860,39 +1930,26 @@ export default function AmbientDashboard() {
             className="flex flex-col justify-between shrink-0 !p-5 !pb-4 relative"
           >
             <div className="absolute top-5 right-5 flex items-center gap-2.5">
-              <div
-                title={
-                  data.oura?.battery !== undefined && data.oura?.battery !== null
-                    ? `Ring Battery: ${data.oura.battery}%`
-                    : 'Oura Ring Paired'
-                }
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[11px] font-medium tabular-nums ${
-                  data.oura?.battery !== undefined && data.oura?.battery !== null
-                    ? data.oura.battery >= 40
-                      ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-300'
-                      : data.oura.battery >= 20
-                        ? 'bg-amber-500/10 border-amber-500/25 text-amber-300'
-                        : 'bg-rose-500/10 border-rose-500/25 text-rose-300'
-                    : 'bg-white/[0.04] border-white/10 text-white/50'
-                }`}
-              >
-                <Battery
-                  className={`w-3.5 h-3.5 ${
-                    data.oura?.battery !== undefined && data.oura?.battery !== null
-                      ? data.oura.battery >= 40
-                        ? 'text-emerald-400'
-                        : data.oura.battery >= 20
-                          ? 'text-amber-400'
-                          : 'text-rose-400'
-                      : 'text-white/40'
-                  }`}
-                />
-                <span>
-                  {data.oura?.battery !== undefined && data.oura?.battery !== null
-                    ? `${data.oura.battery}%`
-                    : 'Ring --%'}
-                </span>
-              </div>
+              {(() => {
+                const ouraCol = getOuraBatteryColor(data.oura?.battery);
+                return (
+                  <div
+                    title={
+                      data.oura?.battery !== undefined && data.oura?.battery !== null
+                        ? `Ring Battery: ${data.oura.battery}%`
+                        : 'Oura Ring Paired'
+                    }
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[11px] font-semibold tabular-nums ${ouraCol.bg} ${ouraCol.border} ${ouraCol.text}`}
+                  >
+                    <Battery className={`w-3.5 h-3.5 ${ouraCol.icon}`} />
+                    <span>
+                      {data.oura?.battery !== undefined && data.oura?.battery !== null
+                        ? `${data.oura.battery}%`
+                        : 'Ring --%'}
+                    </span>
+                  </div>
+                );
+              })()}
               <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-white/[0.06] border border-white/10 text-white/55 text-[11px] font-medium uppercase tracking-widest">
                 <ChevronLeft className="w-3 h-3" /> Press
               </div>
@@ -1911,7 +1968,9 @@ export default function AmbientDashboard() {
                     className={`w-1.5 h-1.5 rounded-full ${getScoreDotColor(data.oura?.readiness)}`}
                   />
                 </div>
-                <div className="text-3xl font-light text-white">{data.oura?.readiness}</div>
+                <div className={`text-3xl font-light ${getBiometricScoreColor(data.oura?.readiness).text}`}>
+                  {data.oura?.readiness}
+                </div>
               </div>
               <div>
                 <div className="flex items-center gap-1.5 text-sm font-medium text-white/55 mb-0.5">
@@ -1920,7 +1979,9 @@ export default function AmbientDashboard() {
                     className={`w-1.5 h-1.5 rounded-full ${getScoreDotColor(data.oura?.sleep)}`}
                   />
                 </div>
-                <div className="text-3xl font-light text-white">{data.oura?.sleep}</div>
+                <div className={`text-3xl font-light ${getBiometricScoreColor(data.oura?.sleep).text}`}>
+                  {data.oura?.sleep}
+                </div>
               </div>
               <div>
                 <div className="text-sm font-medium text-white/55 mb-0.5">Steps</div>
@@ -1949,16 +2010,22 @@ export default function AmbientDashboard() {
                 </span>
               </div>
               <div className="flex items-center gap-2 tabular-nums">
-                {sleepStats.avgHours && (
-                  <span className="px-2 py-0.5 rounded-md bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-medium">
-                    {sleepStats.avgHours}h avg
-                  </span>
-                )}
-                {sleepStats.avgScore && (
-                  <span className="px-2 py-0.5 rounded-md bg-white/[0.05] border border-white/10 text-white/60 text-xs font-medium">
-                    {sleepStats.avgScore} score
-                  </span>
-                )}
+                {sleepStats.avgHours && (() => {
+                  const avgCol = getSleepTrendDurationColor(Number(sleepStats.avgHours));
+                  return (
+                    <span className={`px-2 py-0.5 rounded-md text-xs font-semibold tabular-nums border ${avgCol.bg} ${avgCol.border} ${avgCol.text}`}>
+                      {sleepStats.avgHours}h avg
+                    </span>
+                  );
+                })()}
+                {sleepStats.avgScore && (() => {
+                  const scoreCol = getBiometricScoreColor(sleepStats.avgScore);
+                  return (
+                    <span className={`px-2 py-0.5 rounded-md text-xs font-semibold tabular-nums border ${scoreCol.bg} ${scoreCol.border} ${scoreCol.text}`}>
+                      {sleepStats.avgScore} score
+                    </span>
+                  );
+                })()}
               </div>
             </div>
 
@@ -2016,44 +2083,46 @@ export default function AmbientDashboard() {
                   />
 
                   {/* Day Nodes & Labels */}
-                  {sleepGraphData.points.map((pt, i) => (
-                    <g key={i}>
-                      {/* Exact time label directly above node (e.g. 4h 30m, 6h 51m) - LARGE & BOLD */}
-                      <text
-                        x={pt.x}
-                        y={pt.y - 11}
-                        textAnchor="middle"
-                        fill={pt.isLatest ? '#38bdf8' : '#ffffff'}
-                        fontSize="12.5"
-                        fontWeight="700"
-                        className="tabular-nums font-mono drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]"
-                      >
-                        {pt.timeStr}
-                      </text>
+                  {sleepGraphData.points.map((pt, i) => {
+                    const durCol = getSleepTrendDurationColor(pt.hours);
+                    return (
+                      <g key={i}>
+                        {/* Exact time label directly above node (0-5h: Red, 5-7h: Yellow, 7+h: Green) */}
+                        <text
+                          x={pt.x}
+                          y={pt.y - 11}
+                          textAnchor="middle"
+                          fill={durCol.hex}
+                          fontSize="12.5"
+                          fontWeight="700"
+                          className="tabular-nums font-mono drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]"
+                        >
+                          {pt.timeStr}
+                        </text>
 
-                      {/* Pulsing ring for latest / today */}
-                      {pt.isLatest && (
+                        {/* Pulsing ring for latest / today */}
+                        {pt.isLatest && (
+                          <circle
+                            cx={pt.x}
+                            cy={pt.y}
+                            r="9"
+                            fill="none"
+                            stroke={durCol.hex}
+                            strokeWidth="1.5"
+                            opacity="0.6"
+                            className="animate-pulse"
+                          />
+                        )}
+
+                        {/* Node circle */}
                         <circle
                           cx={pt.x}
                           cy={pt.y}
-                          r="9"
-                          fill="none"
-                          stroke="#38bdf8"
-                          strokeWidth="1.5"
-                          opacity="0.6"
-                          className="animate-pulse"
+                          r={pt.isLatest ? 5.5 : 4}
+                          fill={durCol.hex}
+                          stroke="#0b0f19"
+                          strokeWidth="2.5"
                         />
-                      )}
-
-                      {/* Node circle */}
-                      <circle
-                        cx={pt.x}
-                        cy={pt.y}
-                        r={pt.isLatest ? 5.5 : 4}
-                        fill={pt.isLatest ? '#38bdf8' : '#818cf8'}
-                        stroke="#0b0f19"
-                        strokeWidth="2.5"
-                      />
 
                       {/* Day of week below */}
                       <text
@@ -2068,7 +2137,8 @@ export default function AmbientDashboard() {
                         {pt.label}
                       </text>
                     </g>
-                  ))}
+                  );
+                })}
                 </svg>
               ) : (
                 <div className="text-xs text-white/40 m-auto">Syncing sleep telemetry...</div>
@@ -2279,7 +2349,7 @@ export default function AmbientDashboard() {
                     <span className="text-amber-400 text-xs font-bold leading-none animate-pulse">⚡</span>
                   )}
                 </div>
-                <div className="text-lg font-light text-white tracking-tight">
+                <div className={`text-lg font-medium tracking-tight ${getDeviceBatteryColor(data.battery?.macbook?.percent).text}`}>
                   {data.battery?.macbook?.percent !== null && data.battery?.macbook?.percent !== undefined
                     ? `${data.battery.macbook.percent}%`
                     : '--%'}
@@ -2304,7 +2374,7 @@ export default function AmbientDashboard() {
                     <span className="text-amber-400 text-xs font-bold leading-none animate-pulse">⚡</span>
                   )}
                 </div>
-                <div className="text-lg font-light text-white tracking-tight">
+                <div className={`text-lg font-medium tracking-tight ${getDeviceBatteryColor(data.battery?.iphone?.percent).text}`}>
                   {data.battery?.iphone?.percent !== null && data.battery?.iphone?.percent !== undefined
                     ? `${data.battery.iphone.percent}%`
                     : '--%'}
@@ -2320,7 +2390,7 @@ export default function AmbientDashboard() {
                   <Keyboard className="w-3.5 h-3.5 text-purple-400" />
                   <span className="truncate">Keyboard</span>
                 </div>
-                <div className="text-lg font-light text-white tracking-tight">
+                <div className={`text-lg font-medium tracking-tight ${getDeviceBatteryColor(data.battery?.keyboard?.percent).text}`}>
                   {data.battery?.keyboard?.percent !== null && data.battery?.keyboard?.percent !== undefined
                     ? `${data.battery.keyboard.percent}%`
                     : '--%'}
@@ -2338,7 +2408,13 @@ export default function AmbientDashboard() {
                   )}
                   <span className="truncate">{data.battery?.airpods ? 'AirPods' : 'Mouse'}</span>
                 </div>
-                <div className="text-lg font-light text-white tracking-tight">
+                <div className={`text-lg font-medium tracking-tight ${
+                  data.battery?.airpods
+                    ? getDeviceBatteryColor(data.battery.airpods.left ?? data.battery.airpods.right).text
+                    : data.battery?.mouse?.percent !== null && data.battery?.mouse?.percent !== undefined
+                      ? getDeviceBatteryColor(data.battery.mouse.percent).text
+                      : 'text-white'
+                }`}>
                   {data.battery?.airpods
                     ? `${data.battery.airpods.left ?? data.battery.airpods.right ?? '--'}%`
                     : data.battery?.mouse?.percent !== null && data.battery?.mouse?.percent !== undefined
@@ -2429,7 +2505,7 @@ export default function AmbientDashboard() {
                                     {evTime}
                                   </span>
                                   <div className="w-2 h-2 rounded-full shrink-0 bg-white/20" />
-                                  <span className="text-lg font-medium text-white/50 truncate">
+                                  <span className={`text-lg font-medium truncate ${isAcademicEvent(ev.summary) ? 'text-purple-300/60' : 'text-white/50'}`}>
                                     {ev.summary}
                                   </span>
                                   {ev.location && (
@@ -2457,7 +2533,7 @@ export default function AmbientDashboard() {
                                     {evTime}
                                   </span>
                                   <div className="w-2 h-2 rounded-full shrink-0 bg-emerald-400 animate-pulse" />
-                                  <span className="text-lg font-medium text-white truncate">
+                                  <span className={`text-lg font-medium truncate ${isAcademicEvent(ev.summary) ? 'text-purple-200 font-semibold' : 'text-white'}`}>
                                     {ev.summary}
                                   </span>
                                   <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-400/20 text-emerald-300 border border-emerald-400/30 shrink-0">
@@ -2493,7 +2569,7 @@ export default function AmbientDashboard() {
                                     isUni ? 'bg-purple-400' : 'bg-white/50'
                                   }`}
                                 />
-                                <span className="text-lg font-medium text-white/95 truncate">
+                                <span className={`text-lg font-medium truncate ${isAcademicEvent(ev.summary) ? 'text-purple-300 font-semibold drop-shadow-[0_0_8px_rgba(216,180,254,0.35)]' : 'text-white/95'}`}>
                                   {ev.summary}
                                 </span>
                                 {ev.location && (
