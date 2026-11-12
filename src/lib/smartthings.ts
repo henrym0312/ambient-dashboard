@@ -13,9 +13,10 @@ export interface SamsungTvState {
 }
 
 const DEFAULT_TV_ID = '4c19dcda-2f0a-d588-30d8-68cc28bba7d8';
+const DEFAULT_PAT = '9ef9ddb0-f766-47a4-9491-9619329ce037';
 
 export async function getSamsungTvState(targetDeviceId?: string): Promise<SamsungTvState | null> {
-  const pat = process.env.SMARTTHINGS_PAT;
+  const pat = process.env.SMARTTHINGS_PAT || DEFAULT_PAT;
   const deviceId = targetDeviceId || process.env.SMARTTHINGS_TV_DEVICE_ID || DEFAULT_TV_ID;
   const tvName = process.env.SMARTTHINGS_TV_NAME || 'Samsung TV';
 
@@ -86,7 +87,7 @@ export async function sendSamsungTvCommand(
   },
   targetDeviceId?: string
 ): Promise<{ success: boolean; result?: unknown; error?: string }> {
-  const pat = process.env.SMARTTHINGS_PAT;
+  const pat = process.env.SMARTTHINGS_PAT || DEFAULT_PAT;
   const deviceId = targetDeviceId || process.env.SMARTTHINGS_TV_DEVICE_ID || DEFAULT_TV_ID;
 
   if (!pat) {
