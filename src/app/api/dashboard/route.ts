@@ -5,6 +5,8 @@ import { getRedis } from '@/lib/redis';
 import { getTuyaDevices, type TuyaDevicesState } from '@/lib/tuya';
 
 export const maxDuration = 30;
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 const TZ = 'Europe/London';
 
@@ -286,7 +288,7 @@ export async function GET() {
         }
       }
 
-      if (!tokenData.access_token) return fallbackOura;
+      if (!tokenData.access_token) return { ...fallbackOura, debugBattery: 'no_access_token' };
 
       const past = new Date();
       past.setDate(past.getDate() - 8);
@@ -362,7 +364,10 @@ export async function GET() {
         if (bRes && bRes.ok) {
           const batteryJson = await bRes.json();
           const batteryItems: OuraBatteryItem[] = batteryJson.data || [];
-          ringBattery = findLatestValue(batteryItems, (d) => d.battery_level ?? (d as Record<string, unknown>).battery ?? (d as Record<string, unknown>).battery_percentage ?? (d as Record<string, unknown>).level);
+          ringBattery = findLatestValue(batteryItems, (d) => {
+            const raw = d.battery_level ?? (d as Record<string, unknown>).battery ?? (d as Record<string, unknown>).battery_percentage ?? (d as Record<string, unknown>).level;
+            return typeof raw === 'number' ? raw : null;
+          });
           debugBatteryStatus = `item0: ${JSON.stringify(batteryItems[0])}`;
         }
       } catch (err) {
@@ -425,7 +430,7 @@ export async function GET() {
       };
     } catch (e) {
       console.error('Oura API error:', e);
-      return fallbackOura;
+      return { ...fallbackOura, debugBattery: `task_catch: ${String(e)}` };
     }
   })();
 
