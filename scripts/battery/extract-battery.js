@@ -20,6 +20,99 @@ function getMacBattery() {
   }
 }
 
+function formatYouTubeTitle(raw, appName) {
+  let clean = raw.replace(/\s*-\s*YouTube(?:\s*Music)?\s*$/i, '').trim();
+  clean = clean.replace(/^\(\d+\)\s*/, '').trim();
+  let artist = 'YouTube';
+  let title = clean;
+  const m = clean.match(/^(.+?)\s*[-–—:]\s*(.+)$/);
+  if (m && m[1] && m[2] && m[1].length < 40) {
+    artist = m[1].trim();
+    title = m[2].trim();
+  }
+  return {
+    title: title || 'YouTube Video',
+    artist: artist || 'YouTube',
+    album: appName || 'YouTube',
+    isPlaying: true,
+    source: 'youtube',
+  };
+}
+
+function getChromiumMedia(appName, sourceName) {
+  try {
+    const isRunning = execSync(`pgrep -i "${appName.split(' ')[0]}" || true`).toString().trim();
+    if (!isRunning) return null;
+    const script = `tell application "${appName}"
+  repeat with w in windows
+    repeat with t in tabs of w
+      set tTitle to title of t
+      set tUrl to URL of t
+      if tUrl contains "youtube.com/watch" or tTitle contains "- YouTube" or tUrl contains "music.youtube.com" then
+        return tTitle & "|||" & tUrl
+      end if
+    end repeat
+  end repeat
+end tell`;
+    const res = execFileSync('osascript', ['-e', script], { timeout: 2500 }).toString().trim();
+    if (!res || res === 'missing value' || res.includes('error')) return null;
+    const [rawTitle] = res.split('|||');
+    return formatYouTubeTitle(rawTitle, sourceName);
+  } catch {
+    return null;
+  }
+}
+
+function getSafariMedia() {
+  try {
+    const isRunning = execSync('pgrep -x Safari || true').toString().trim();
+    if (!isRunning) return null;
+    const script = `tell application "Safari"
+  repeat with w in windows
+    repeat with t in tabs of w
+      set tTitle to name of t
+      set tUrl to URL of t
+      if tUrl contains "youtube.com/watch" or tTitle contains "- YouTube" or tUrl contains "music.youtube.com" then
+        return tTitle & "|||" & tUrl
+      end if
+    end repeat
+  end repeat
+end tell`;
+    const res = execFileSync('osascript', ['-e', script], { timeout: 2500 }).toString().trim();
+    if (!res || res === 'missing value' || res.includes('error')) return null;
+    const [rawTitle] = res.split('|||');
+    return formatYouTubeTitle(rawTitle, 'Safari');
+  } catch {
+    return null;
+  }
+}
+
+function getSpotifyMedia() {
+  try {
+    const isRunning = execSync('pgrep -x Spotify || true').toString().trim();
+    if (!isRunning) return null;
+    const script = `tell application "Spotify"
+if player state is playing then
+  return name of current track & "|||" & artist of current track & "|||" & album of current track
+else
+  return "PAUSED"
+end if
+end tell`;
+    const res = execFileSync('osascript', ['-e', script], { timeout: 2500 }).toString().trim();
+    if (!res || res === 'PAUSED' || res.includes('error')) return null;
+    const [title, artist, album] = res.split('|||');
+    return {
+      title: title || 'Unknown Title',
+      artist: artist || 'Unknown Artist',
+      album: album || '',
+      isPlaying: true,
+      source: 'spotify',
+    };
+  } catch {
+    return null;
+  }
+}
+
 function getAppleMusic() {
   try {
     const isRunning = execSync('pgrep -x Music || true').toString().trim();
@@ -39,10 +132,24 @@ end tell`;
       artist: artist || 'Unknown Artist',
       album: album || '',
       isPlaying: true,
+      source: 'applemusic',
     };
   } catch {
     return null;
   }
+}
+
+function getNowPlayingMedia() {
+  return (
+    getAppleMusic() ||
+    getSpotifyMedia() ||
+    getChromiumMedia('Microsoft Edge', 'Edge') ||
+    getChromiumMedia('Google Chrome', 'Chrome') ||
+    getChromiumMedia('Brave Browser', 'Brave') ||
+    getChromiumMedia('Arc', 'Arc') ||
+    getSafariMedia() ||
+    null
+  );
 }
 
 function getBluetoothDevices() {
@@ -114,7 +221,7 @@ function getBluetoothDevices() {
 const payload = {
   macbook: getMacBattery(),
   ...getBluetoothDevices(),
-  media: getAppleMusic(),
+  media: getNowPlayingMedia(),
 };
 
 process.stdout.write(JSON.stringify(payload));

@@ -3,6 +3,7 @@ import Parser from 'rss-parser';
 import ical, { type CalendarComponent, type ParameterValue, type VEvent } from 'node-ical';
 import { getRedis } from '@/lib/redis';
 import { getTuyaDevices, type TuyaDevicesState } from '@/lib/tuya';
+import { getSamsungTvState, type SamsungTvState } from '@/lib/smartthings';
 
 export const maxDuration = 30;
 
@@ -98,6 +99,7 @@ interface DashboardSnapshot {
   news: string[];
   gold: GoldData;
   tuya?: TuyaDevicesState;
+  tv?: SamsungTvState | null;
   updatedAt: string;
 }
 
@@ -580,13 +582,19 @@ export async function GET() {
     error: err instanceof Error ? err.message : String(err),
   }));
 
-  const [weather, oura, events, news, gold, tuya] = await Promise.all([
+  const tvTask = getSamsungTvState().catch((err) => {
+    console.error('TV status fetch error:', err);
+    return null;
+  });
+
+  const [weather, oura, events, news, gold, tuya, tv] = await Promise.all([
     weatherTask,
     ouraTask,
     calendarTask,
     newsTask,
     goldTask,
     tuyaTask,
+    tvTask,
   ]);
 
   const payload: DashboardSnapshot = {
@@ -596,6 +604,7 @@ export async function GET() {
     news,
     gold,
     tuya,
+    tv,
     updatedAt: new Date().toISOString(),
   };
 

@@ -36,6 +36,10 @@ import {
   Keyboard,
   Mouse,
   Headphones,
+  Tv,
+  Volume2,
+  VolumeX,
+  Power,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -44,6 +48,7 @@ import {
   generateDayCurve,
 } from '@/lib/meds';
 import type { BatteryFleetData } from '@/app/api/battery/route';
+import type { SamsungTvState } from '@/lib/smartthings';
 
 const TZ = 'Europe/London';
 
@@ -138,6 +143,7 @@ interface DashboardState {
   gold: GoldData;
   meds: MedLogPayload;
   tuya?: TuyaState;
+  tv?: SamsungTvState | null;
   battery?: BatteryFleetData | null;
   updatedAt?: string;
 }
@@ -375,7 +381,7 @@ function getSmoothCurvePath(points: { x: number; y: number }[]): string {
 
 export default function AmbientDashboard() {
   const [now, setNow] = useState<Date | null>(null);
-  const [manualModal, setManualModal] = useState<'calendar' | 'reminders' | 'oura' | 'meds' | null>(null);
+  const [manualModal, setManualModal] = useState<'calendar' | 'reminders' | 'oura' | 'meds' | 'tv' | null>(null);
   const [dismissedEventKey, setDismissedEventKey] = useState<string | null>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
   const [syncError, setSyncError] = useState(false);
@@ -444,6 +450,9 @@ export default function AmbientDashboard() {
           }
           if (dashJson.tuya) {
             updates.tuya = dashJson.tuya;
+          }
+          if (dashJson.tv !== undefined) {
+            updates.tv = dashJson.tv;
           }
           if (dashJson.updatedAt) {
             updates.updatedAt = dashJson.updatedAt;
@@ -537,8 +546,48 @@ export default function AmbientDashboard() {
     upcomingAlertEvent && upcomingEventKey && dismissedEventKey !== upcomingEventKey
   );
 
-  const activeModal: 'calendar' | 'reminders' | 'oura' | 'meds' | 'upcoming' | null =
+  const activeModal: 'calendar' | 'reminders' | 'oura' | 'meds' | 'tv' | 'upcoming' | null =
     manualModal ?? (isUpcomingModalOpen ? 'upcoming' : null);
+
+  const handleTvControl = async (action: string, value?: unknown) => {
+    // Optimistic UI updates
+    if (action === 'power') {
+      setData((prev) => ({
+        ...prev,
+        tv: prev.tv ? { ...prev.tv, power: value as 'on' | 'off' } : null,
+      }));
+    } else if (action === 'toggle') {
+      setData((prev) => ({
+        ...prev,
+        tv: prev.tv ? { ...prev.tv, power: prev.tv.power === 'on' ? 'off' : 'on' } : null,
+      }));
+    } else if (action === 'mute') {
+      setData((prev) => ({
+        ...prev,
+        tv: prev.tv ? { ...prev.tv, isMuted: value as boolean } : null,
+      }));
+    } else if (action === 'input') {
+      const friendly = value === 'HDMI1' ? 'HDMI 1' : value === 'dtv' ? 'Live TV' : String(value);
+      setData((prev) => ({
+        ...prev,
+        tv: prev.tv ? { ...prev.tv, inputSource: friendly } : null,
+      }));
+    }
+
+    try {
+      const res = await fetch('/api/tv', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, value }),
+      });
+      const resJson = await res.json();
+      if (resJson.tv) {
+        setData((prev) => ({ ...prev, tv: resJson.tv }));
+      }
+    } catch (err) {
+      console.error('Failed to control TV:', err);
+    }
+  };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -547,6 +596,7 @@ export default function AmbientDashboard() {
       // DOWN  -> Tasks & Reminders
       // LEFT  -> Oura Biometrics & Sleep
       // RIGHT -> Calendar Schedule
+      // T     -> Samsung TV Control
       if (e.key === 'ArrowUp' || e.key === 'm' || e.key === 'M') {
         setManualModal((prev) => (prev === 'meds' ? null : 'meds'));
       } else if (e.key === 'ArrowDown' || e.key === 'r' || e.key === 'R') {
@@ -555,6 +605,8 @@ export default function AmbientDashboard() {
         setManualModal((prev) => (prev === 'oura' ? null : 'oura'));
       } else if (e.key === 'ArrowRight' || e.key === 'c' || e.key === 'C') {
         setManualModal((prev) => (prev === 'calendar' ? null : 'calendar'));
+      } else if (e.key === 't' || e.key === 'T') {
+        setManualModal((prev) => (prev === 'tv' ? null : 'tv'));
       } else if (e.key === 'Enter' || e.key === 'Escape' || e.key === 'Backspace') {
         if (isUpcomingModalOpen && upcomingEventKey) {
           setDismissedEventKey(upcomingEventKey);
@@ -1661,6 +1713,142 @@ export default function AmbientDashboard() {
               </div>
             </div>
           )}
+
+          {activeModal === 'tv' && (
+            <div className="flex flex-col h-full max-w-2xl mx-auto w-full justify-between py-4">
+              <div>
+                <div className="flex items-center justify-between mb-8">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-violet-500/20 border border-violet-500/40 flex items-center justify-center text-violet-300">
+                      <Tv className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h2 className="text-3xl font-semibold text-white">
+                        {data.tv?.name || 'Samsung TV'}
+                      </h2>
+                      <p className="text-sm text-white/50">
+                        Uni Flat • Samsung 43&quot; 4K Smart TV
+                      </p>
+                    </div>
+                  </div>
+                  <span
+                    className={`px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider border ${
+                      data.tv?.power === 'on'
+                        ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                        : 'bg-white/[0.06] text-white/40 border-white/10'
+                    }`}
+                  >
+                    {data.tv?.power === 'on' ? 'Power ON' : 'Standby'}
+                  </span>
+                </div>
+
+                {/* Main Power Button */}
+                <div className="mb-8">
+                  <button
+                    type="button"
+                    onClick={() => handleTvControl('toggle')}
+                    className={`w-full py-5 rounded-2xl flex items-center justify-center gap-3 font-semibold text-lg transition-all cursor-pointer ${
+                      data.tv?.power === 'on'
+                        ? 'bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_30px_rgba(139,92,246,0.35)]'
+                        : 'bg-white/10 hover:bg-white/15 text-white/70 border border-white/10'
+                    }`}
+                  >
+                    <Power className="w-6 h-6" />
+                    {data.tv?.power === 'on' ? 'Turn TV Off' : 'Turn TV On'}
+                  </button>
+                </div>
+
+                {/* Controls Grid */}
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Input Source */}
+                  <div className="p-5 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex flex-col justify-between">
+                    <span className="text-xs uppercase font-semibold text-white/40 tracking-wider mb-3">
+                      Input Source
+                    </span>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleTvControl('input', 'HDMI1')}
+                        className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
+                          data.tv?.inputSource === 'HDMI 1' || data.tv?.inputSource === 'HDMI1'
+                            ? 'bg-violet-500/30 text-violet-200 border border-violet-400/50'
+                            : 'bg-white/[0.05] text-white/60 hover:bg-white/10 border border-white/5'
+                        }`}
+                      >
+                        HDMI 1
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleTvControl('input', 'dtv')}
+                        className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
+                          data.tv?.inputSource === 'Live TV' || data.tv?.inputSource === 'dtv'
+                            ? 'bg-violet-500/30 text-violet-200 border border-violet-400/50'
+                            : 'bg-white/[0.05] text-white/60 hover:bg-white/10 border border-white/5'
+                        }`}
+                      >
+                        Live TV
+                      </button>
+                    </div>
+                    <span className="text-[11px] text-white/35 mt-2 truncate">
+                      Connected to Apple TV & Firestick via HDMI
+                    </span>
+                  </div>
+
+                  {/* Volume & Audio */}
+                  <div className="p-5 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex flex-col justify-between">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs uppercase font-semibold text-white/40 tracking-wider">
+                        Audio Volume
+                      </span>
+                      <span className="text-sm font-semibold text-white/80 tabular-nums">
+                        {data.tv?.isMuted ? 'Muted' : `${data.tv?.volume ?? 0}%`}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleTvControl('volumeDown')}
+                        className="flex-1 py-2 rounded-xl bg-white/[0.06] hover:bg-white/10 text-white font-bold text-lg cursor-pointer transition"
+                      >
+                        -
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleTvControl('mute', !data.tv?.isMuted)}
+                        className={`p-2.5 rounded-xl transition cursor-pointer ${
+                          data.tv?.isMuted
+                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                            : 'bg-white/[0.06] hover:bg-white/10 text-white/80'
+                        }`}
+                      >
+                        {data.tv?.isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleTvControl('volumeUp')}
+                        className="flex-1 py-2 rounded-xl bg-white/[0.06] hover:bg-white/10 text-white font-bold text-lg cursor-pointer transition"
+                      >
+                        +
+                      </button>
+                    </div>
+                    <span className="text-[11px] text-white/35 mt-2">
+                      Mode: {data.tv?.soundMode || 'Standard'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Picture Mode Details */}
+                <div className="mt-4 p-4 rounded-2xl bg-white/[0.02] border border-white/[0.06] flex items-center justify-between text-xs text-white/50">
+                  <span>Picture Preset: <strong className="text-white/80">{data.tv?.pictureMode || 'Standard'}</strong></span>
+                  <span>Model Code: <strong className="text-white/80">UE43TU7020KXXU</strong></span>
+                </div>
+              </div>
+
+              <div className="text-center text-xs text-white/30 pt-4">
+                SmartThings Cloud Control • Connected via PAT
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -1746,6 +1934,24 @@ export default function AmbientDashboard() {
               >
                 <Lightbulb className="w-5 h-5" />
               </div>
+
+              {/* Samsung Smart TV Circle */}
+              <button
+                type="button"
+                onClick={() => setManualModal('tv')}
+                title={
+                  data.tv?.power === 'on'
+                    ? `Samsung TV: ON (${data.tv.inputSource || 'HDMI 1'}) • Press T or Click for Remote`
+                    : 'Samsung TV: Standby • Press T or Click for Remote'
+                }
+                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-500 cursor-pointer ${
+                  data.tv?.power === 'on'
+                    ? 'bg-violet-500/25 text-violet-300 border border-violet-400/60 shadow-[0_0_14px_rgba(167,139,250,0.55)]'
+                    : 'bg-white/[0.05] text-white/30 border border-white/10 hover:border-white/20'
+                }`}
+              >
+                <Tv className="w-5 h-5" />
+              </button>
             </div>
           </div>
         </div>
@@ -1896,7 +2102,7 @@ export default function AmbientDashboard() {
                     data.battery?.media?.isPlaying ? 'animate-bounce text-pink-400' : 'text-white/40'
                   }`}
                 />
-                {data.battery?.media?.isPlaying ? 'Now Playing' : 'Apple Music'}
+                Now Playing
               </span>
             </div>
             <span className="text-[10px] text-white/40 uppercase tracking-wider font-medium">
