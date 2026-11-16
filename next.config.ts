@@ -5,11 +5,15 @@ const nextConfig: NextConfig = {
   devIndicators: false,
   cacheComponents: true,
   partialPrefetching: true,
+  transpilePackages: ["lucide-react"],
+  experimental: {
+    turbopackPluginRuntimeStrategy: "forceWorkerThreads",
+  },
   turbopack: {
     root: import.meta.dirname,
     rules: {
       "*.css": {
-        loaders: ["@tailwindcss/turbopack"],
+        loaders: ["./src/lib/legacy-css-loader.mjs"],
         as: "*.css",
       },
     },
