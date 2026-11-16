@@ -41,7 +41,7 @@ function formatYouTubeTitle(raw, appName) {
 
 function getChromiumMedia(appName, sourceName) {
   try {
-    const isRunning = execSync(`pgrep -i "${appName.split(' ')[0]}" || true`).toString().trim();
+    const isRunning = execSync(`pgrep -x "${appName}" || true`).toString().trim();
     if (!isRunning) return null;
     const script = `tell application "${appName}"
   repeat with w in windows

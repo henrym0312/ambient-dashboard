@@ -21,6 +21,7 @@ export interface MediaNowPlaying {
   title?: string;
   artist?: string;
   album?: string;
+  source?: string;
   isPlaying?: boolean;
   updatedAt?: string;
 }
@@ -209,6 +210,7 @@ export async function POST(req: Request) {
             title: typeof m.title === 'string' ? m.title : undefined,
             artist: typeof m.artist === 'string' ? m.artist : undefined,
             album: typeof m.album === 'string' ? m.album : undefined,
+            source: typeof m.source === 'string' ? m.source : undefined,
             isPlaying: typeof m.isPlaying === 'boolean' ? m.isPlaying : false,
             updatedAt: nowIso,
           };

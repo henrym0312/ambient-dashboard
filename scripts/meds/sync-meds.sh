@@ -12,7 +12,7 @@ if [[ ! -f "$MEDS_FILE" ]]; then
   exit 0
 fi
 
-DASHBOARD_API_URL="${DASHBOARD_API_URL:-https://ambient-dashboard-seven.vercel.app}"
+DASHBOARD_API_URL="${DASHBOARD_API_URL:-https://ambient-dashboard-henry-seven.vercel.app}"
 CRON_SECRET="${CRON_SECRET:-}"
 
 if [[ -f "$CONFIG_FILE" ]]; then

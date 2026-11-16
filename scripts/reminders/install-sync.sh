@@ -54,8 +54,8 @@ if [[ -f "$REPO_DIR/.env.local" ]]; then
 fi
 
 if [[ -z "$DASHBOARD_API_URL" ]]; then
-  read -r -p "Enter your deployed Vercel Dashboard URL [https://ambient-dashboard-seven.vercel.app]: " INPUT_URL
-  DASHBOARD_API_URL="${INPUT_URL:-https://ambient-dashboard-seven.vercel.app}"
+  read -r -p "Enter your deployed Vercel Dashboard URL [https://ambient-dashboard-henry-seven.vercel.app]: " INPUT_URL
+  DASHBOARD_API_URL="${INPUT_URL:-https://ambient-dashboard-henry-seven.vercel.app}"
 else
   echo "✓ Detected Dashboard URL: $DASHBOARD_API_URL"
 fi

@@ -14,7 +14,7 @@ export async function GET(req: Request) {
         code: code || '',
         client_id: process.env.OURA_CLIENT_ID || '',
         client_secret: process.env.OURA_CLIENT_SECRET || '',
-        redirect_uri: 'https://ambient-dashboard-seven.vercel.app/api/oura/callback',
+        redirect_uri: 'https://ambient-dashboard-henry-seven.vercel.app/api/oura/callback',
       }),
     });
 
@@ -31,7 +31,7 @@ export async function GET(req: Request) {
         })
       );
 
-      return NextResponse.redirect('https://ambient-dashboard-seven.vercel.app');
+      return NextResponse.redirect('https://ambient-dashboard-henry-seven.vercel.app');
     }
 
     return NextResponse.json({ error: 'Failed to exchange token', details: data });
