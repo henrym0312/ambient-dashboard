@@ -1,3 +1,4 @@
+export const maxDuration = 60;
 import { NextRequest, NextResponse } from 'next/server';
 import { isAuthorised, redis } from '@/lib/api-auth';
 
@@ -107,7 +108,7 @@ export async function GET(req: NextRequest) {
 
     await redis.set('fuel:dataset', { updatedAt: new Date().toISOString(), stations: merged });
     return NextResponse.json({ status: 'ok', count: merged.length });
-  } catch {
-    return NextResponse.json({ error: 'Fuel sync failed' }, { status: 500 });
+  } catch (err: any) {
+    return NextResponse.json({ error: 'Fuel sync failed', detail: err?.message }, { status: 500 });
   }
 }

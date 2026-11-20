@@ -11,19 +11,12 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [goldRes, fxRes] = await Promise.all([
-      fetch('https://api.binance.com/api/v3/ticker/price?symbol=PAXGUSDT', { cache: 'no-store' }),
-      fetch('https://api.frankfurter.dev/v1/latest?base=USD&symbols=GBP', { cache: 'no-store' }),
-    ]);
+    const res = await fetch('https://api.coinbase.com/v2/prices/PAXG-GBP/spot', { cache: 'no-store' });
+    if (!res.ok) throw new Error(`Coinbase HTTP ${res.status}`);
 
-    if (!goldRes.ok || !fxRes.ok) throw new Error('Upstream API failure');
-
-    const goldData = await goldRes.json();
-    const fxData = await fxRes.json();
-
-    const spotUsdPerOz = parseFloat(goldData.price);
-    const usdToGbpRate = parseFloat(fxData.rates.GBP);
-    const goldPerGram = (spotUsdPerOz * usdToGbpRate) / GRAMS_PER_TROY_OUNCE;
+    const json = await res.json();
+    const spotGbpPerOz = parseFloat(json.data.amount);
+    const goldPerGram = spotGbpPerOz / GRAMS_PER_TROY_OUNCE;
 
     const currentValue = goldPerGram * PURE_GOLD_WEIGHT_G;
     const profitLossGbp = currentValue - PURCHASE_PRICE;
@@ -40,7 +33,7 @@ export async function GET(req: NextRequest) {
       },
       { headers: { 'Cache-Control': 's-maxage=900, stale-while-revalidate=60' } }
     );
-  } catch {
-    return NextResponse.json({ error: 'Failed to fetch gold spot price' }, { status: 502 });
+  } catch (err: any) {
+    return NextResponse.json({ error: 'Failed to fetch gold spot price', detail: err?.message }, { status: 502 });
   }
 }
