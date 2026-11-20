@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isAuthorised, kvGet, kvSet } from '@/lib/api-auth';
 
-async function getValidOuraToken(): Promise<string | null> {
+async function getValidOuraToken(): Promise<string> {
   const cachedAccess = await kvGet<string>('oura:access_token');
   if (cachedAccess) return cachedAccess;
 
   const refreshToken = (await kvGet<string>('oura:refresh_token')) || process.env.OURA_REFRESH_TOKEN;
-  if (!refreshToken) return null;
+  if (!refreshToken) throw new Error('OURA_REFRESH_TOKEN is missing');
 
   const res = await fetch('https://api.ouraring.com/oauth/token', {
     method: 'POST',
@@ -19,8 +19,9 @@ async function getValidOuraToken(): Promise<string | null> {
     }),
   });
 
-  if (!res.ok) return null;
-  const data = await res.json();
+  const text = await res.text();
+  if (!res.ok) throw new Error(`Oura OAuth HTTP ${res.status}: ${text.slice(0, 150)}`);
+  const data = JSON.parse(text);
 
   if (data.access_token) {
     const ttl = Math.max(300, (data.expires_in || 3600) - 300);
@@ -30,7 +31,7 @@ async function getValidOuraToken(): Promise<string | null> {
     await kvSet('oura:refresh_token', data.refresh_token);
   }
 
-  return data.access_token || null;
+  return data.access_token;
 }
 
 export async function GET(req: NextRequest) {
@@ -40,10 +41,6 @@ export async function GET(req: NextRequest) {
 
   try {
     const token = await getValidOuraToken();
-    if (!token) {
-      return NextResponse.json({ error: 'Oura authentication failed' }, { status: 500 });
-    }
-
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
     const yestDate = new Date(now);

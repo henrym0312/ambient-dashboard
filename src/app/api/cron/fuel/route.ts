@@ -6,11 +6,16 @@ const TOKEN_URL = 'https://www.fuel-finder.service.gov.uk/api/v1/oauth/generate_
 const INFO_URL = 'https://www.fuel-finder.service.gov.uk/api/v1/pfs';
 const FUEL_URL = 'https://www.fuel-finder.service.gov.uk/api/v1/pfs/fuel-prices';
 const FUEL_TYPE = 'E10';
+const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15';
 
 async function getAuthToken(): Promise<string> {
   const res = await fetch(TOKEN_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'User-Agent': UA,
+    },
     body: JSON.stringify({
       client_id: process.env.FUEL_CLIENT_ID,
       client_secret: process.env.FUEL_CLIENT_SECRET,
@@ -30,7 +35,7 @@ async function fetchPaginated(baseUrl: string, token: string): Promise<any[]> {
   while (keepFetching && batch <= 30) {
     const promises = [0, 1, 2].map((i) =>
       fetch(`${baseUrl}?batch-number=${batch + i}`, {
-        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', 'User-Agent': UA },
       })
         .then((r) => (r.ok ? r.json() : null))
         .catch(() => null)
