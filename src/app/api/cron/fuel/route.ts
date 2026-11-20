@@ -1,3 +1,4 @@
+export const preferredRegion = "lhr1";
 export const maxDuration = 60;
 import { NextRequest, NextResponse } from 'next/server';
 import { isAuthorised, kvSet } from '@/lib/api-auth';
