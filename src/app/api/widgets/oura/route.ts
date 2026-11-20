@@ -1,19 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isAuthorised, kvGet, kvSet } from '@/lib/api-auth';
 
-async function getValidOuraToken(): Promise<string> {
-  const cachedAccess = await kvGet<string>('oura:access_token');
-  if (cachedAccess) return cachedAccess;
+interface OuraTokens {
+  access_token: string;
+  refresh_token: string;
+  expires_at: number;
+}
 
-  const refreshToken = (await kvGet<string>('oura:refresh_token')) || process.env.OURA_REFRESH_TOKEN;
-  if (!refreshToken) throw new Error('OURA_REFRESH_TOKEN is missing');
+async function getValidOuraToken(): Promise<string> {
+  const stored = await kvGet<OuraTokens>('oura_tokens');
+  if (!stored || !stored.refresh_token) {
+    throw new Error('No oura_tokens found in Redis; log in at /api/oura/login first');
+  }
+
+  if (stored.access_token && Date.now() < stored.expires_at) {
+    return stored.access_token;
+  }
 
   const res = await fetch('https://api.ouraring.com/oauth/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       grant_type: 'refresh_token',
-      refresh_token: refreshToken,
+      refresh_token: stored.refresh_token,
       client_id: process.env.OURA_CLIENT_ID || '',
       client_secret: process.env.OURA_CLIENT_SECRET || '',
     }),
@@ -23,13 +32,11 @@ async function getValidOuraToken(): Promise<string> {
   if (!res.ok) throw new Error(`Oura OAuth HTTP ${res.status}: ${text.slice(0, 150)}`);
   const data = JSON.parse(text);
 
-  if (data.access_token) {
-    const ttl = Math.max(300, (data.expires_in || 3600) - 300);
-    await kvSet('oura:access_token', data.access_token, ttl);
-  }
-  if (data.refresh_token) {
-    await kvSet('oura:refresh_token', data.refresh_token);
-  }
+  await kvSet('oura_tokens', {
+    access_token: data.access_token,
+    refresh_token: data.refresh_token || stored.refresh_token,
+    expires_at: Date.now() + (data.expires_in || 86400) * 1000 - 300000,
+  });
 
   return data.access_token;
 }
