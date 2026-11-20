@@ -1,10 +1,42 @@
 import { NextRequest } from 'next/server';
-import { Redis } from '@upstash/redis';
+import { createClient } from 'redis';
 
-export const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL || '',
-  token: process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN || '',
-});
+let client: ReturnType<typeof createClient> | null = null;
+
+async function getRedis() {
+  if (!process.env.REDIS_URL) {
+    throw new Error('REDIS_URL environment variable is not set');
+  }
+  if (!client) {
+    client = createClient({ url: process.env.REDIS_URL });
+    client.on('error', (err) => console.error('Redis error:', err));
+  }
+  if (!client.isOpen) {
+    await client.connect();
+  }
+  return client;
+}
+
+export async function kvGet<T>(key: string): Promise<T | null> {
+  const r = await getRedis();
+  const val = await r.get(key);
+  if (!val) return null;
+  try {
+    return JSON.parse(val) as T;
+  } catch {
+    return val as unknown as T;
+  }
+}
+
+export async function kvSet(key: string, value: unknown, ttlSeconds?: number): Promise<void> {
+  const r = await getRedis();
+  const payload = typeof value === 'string' ? value : JSON.stringify(value);
+  if (ttlSeconds) {
+    await r.set(key, payload, { EX: ttlSeconds });
+  } else {
+    await r.set(key, payload);
+  }
+}
 
 export function isAuthorised(req: NextRequest): boolean {
   const authHeader = req.headers.get('authorization');

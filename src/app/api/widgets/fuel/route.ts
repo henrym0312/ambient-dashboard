@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isAuthorised, redis } from '@/lib/api-auth';
+import { isAuthorised, kvGet } from '@/lib/api-auth';
 
 const MPG = 35;
 const TANK_CAPACITY_LITRES = 40;
@@ -21,47 +21,51 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
   }
 
-  const lat = parseFloat(req.nextUrl.searchParams.get('lat') || '54.7753');
-  const lon = parseFloat(req.nextUrl.searchParams.get('lon') || '-1.5849');
-  const radius = parseFloat(req.nextUrl.searchParams.get('radius') || '5.5');
+  try {
+    const lat = parseFloat(req.nextUrl.searchParams.get('lat') || '54.7753');
+    const lon = parseFloat(req.nextUrl.searchParams.get('lon') || '-1.5849');
+    const radius = parseFloat(req.nextUrl.searchParams.get('radius') || '5.5');
 
-  const cached = await redis.get<{ updatedAt: string; stations: any[] }>('fuel:dataset');
-  if (!cached || !Array.isArray(cached.stations)) {
-    return NextResponse.json({ error: 'Fuel cache empty; trigger /api/cron/fuel first' }, { status: 503 });
+    const cached = await kvGet<{ updatedAt: string; stations: any[] }>('fuel:dataset');
+    if (!cached || !Array.isArray(cached.stations)) {
+      return NextResponse.json({ error: 'Fuel cache empty; trigger /api/cron/fuel first' }, { status: 503 });
+    }
+
+    const results = cached.stations
+      .map((s) => {
+        const distance = calculateDistance(lat, lon, s.lat, s.lon);
+        if (distance > radius) return null;
+
+        const pricePoundPerLitre = s.price / 100;
+        const tripCost = ((distance * 2) / MPG) * LITRES_PER_GALLON * pricePoundPerLitre;
+        const metrics = [10, 15, 20].map((amount) => ({
+          amount,
+          miles: ((amount / pricePoundPerLitre) * (MPG / LITRES_PER_GALLON)).toFixed(1),
+        }));
+
+        return {
+          name: s.name,
+          address: s.address,
+          price: s.price,
+          distance: Number(distance.toFixed(2)),
+          tripCost: tripCost.toFixed(2),
+          metrics,
+          fullTankCost: (TANK_CAPACITY_LITRES * pricePoundPerLitre).toFixed(2),
+          fullTankMiles: (TANK_CAPACITY_LITRES * (MPG / LITRES_PER_GALLON)).toFixed(1),
+          wazeUrl: `https://waze.com/ul?ll=${s.lat},${s.lon}&navigate=yes`,
+        };
+      })
+      .filter(Boolean)
+      .sort((a: any, b: any) => a.price - b.price || a.distance - b.distance);
+
+    const updatedStr = new Date(cached.updatedAt).toLocaleTimeString('en-GB', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Europe/London',
+    });
+
+    return NextResponse.json({ results, updatedStr });
+  } catch (err: any) {
+    return NextResponse.json({ error: 'Fuel query failed', detail: err?.message }, { status: 500 });
   }
-
-  const results = cached.stations
-    .map((s) => {
-      const distance = calculateDistance(lat, lon, s.lat, s.lon);
-      if (distance > radius) return null;
-
-      const pricePoundPerLitre = s.price / 100;
-      const tripCost = ((distance * 2) / MPG) * LITRES_PER_GALLON * pricePoundPerLitre;
-      const metrics = [10, 15, 20].map((amount) => ({
-        amount,
-        miles: ((amount / pricePoundPerLitre) * (MPG / LITRES_PER_GALLON)).toFixed(1),
-      }));
-
-      return {
-        name: s.name,
-        address: s.address,
-        price: s.price,
-        distance: Number(distance.toFixed(2)),
-        tripCost: tripCost.toFixed(2),
-        metrics,
-        fullTankCost: (TANK_CAPACITY_LITRES * pricePoundPerLitre).toFixed(2),
-        fullTankMiles: (TANK_CAPACITY_LITRES * (MPG / LITRES_PER_GALLON)).toFixed(1),
-        wazeUrl: `https://waze.com/ul?ll=${s.lat},${s.lon}&navigate=yes`,
-      };
-    })
-    .filter(Boolean)
-    .sort((a: any, b: any) => a.price - b.price || a.distance - b.distance);
-
-  const updatedStr = new Date(cached.updatedAt).toLocaleTimeString('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'Europe/London',
-  });
-
-  return NextResponse.json({ results, updatedStr });
 }

@@ -54,7 +54,7 @@ function getChromiumMedia(appName, sourceName) {
     end repeat
   end repeat
 end tell`;
-    const res = execFileSync('osascript', ['-e', script], { timeout: 2500 }).toString().trim();
+    const res = execFileSync('osascript', ['-e', script], { timeout: 2500, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
     if (!res || res === 'missing value' || res.includes('error')) return null;
     const [rawTitle] = res.split('|||');
     return formatYouTubeTitle(rawTitle, sourceName);
@@ -78,7 +78,7 @@ function getSafariMedia() {
     end repeat
   end repeat
 end tell`;
-    const res = execFileSync('osascript', ['-e', script], { timeout: 2500 }).toString().trim();
+    const res = execFileSync('osascript', ['-e', script], { timeout: 2500, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
     if (!res || res === 'missing value' || res.includes('error')) return null;
     const [rawTitle] = res.split('|||');
     return formatYouTubeTitle(rawTitle, 'Safari');
@@ -98,7 +98,7 @@ else
   return "PAUSED"
 end if
 end tell`;
-    const res = execFileSync('osascript', ['-e', script], { timeout: 2500 }).toString().trim();
+    const res = execFileSync('osascript', ['-e', script], { timeout: 2500, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
     if (!res || res === 'PAUSED' || res.includes('error')) return null;
     const [title, artist, album] = res.split('|||');
     return {
@@ -124,7 +124,7 @@ else
   return "PAUSED"
 end if
 end tell`;
-    const res = execFileSync('osascript', ['-e', script], { timeout: 2500 }).toString().trim();
+    const res = execFileSync('osascript', ['-e', script], { timeout: 2500, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
     if (res === 'PAUSED' || !res || res.includes('error')) return null;
     const [title, artist, album] = res.split('|||');
     return {
@@ -144,9 +144,6 @@ function getNowPlayingMedia() {
     getAppleMusic() ||
     getSpotifyMedia() ||
     getChromiumMedia('Microsoft Edge', 'Edge') ||
-    getChromiumMedia('Google Chrome', 'Chrome') ||
-    getChromiumMedia('Brave Browser', 'Brave') ||
-    getChromiumMedia('Arc', 'Arc') ||
     getSafariMedia() ||
     null
   );

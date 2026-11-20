@@ -1,6 +1,6 @@
 export const maxDuration = 60;
 import { NextRequest, NextResponse } from 'next/server';
-import { isAuthorised, redis } from '@/lib/api-auth';
+import { isAuthorised, kvSet } from '@/lib/api-auth';
 
 const TOKEN_URL = 'https://www.fuel-finder.service.gov.uk/api/v1/oauth/generate_access_token';
 const INFO_URL = 'https://www.fuel-finder.service.gov.uk/api/v1/pfs';
@@ -16,7 +16,9 @@ async function getAuthToken(): Promise<string> {
       client_secret: process.env.FUEL_CLIENT_SECRET,
     }),
   });
-  const json = await res.json();
+  const text = await res.text();
+  if (!res.ok || !text) throw new Error(`Gov OAuth HTTP ${res.status}: ${text.slice(0, 120)}`);
+  const json = JSON.parse(text);
   return json.data ? json.data.access_token : json.access_token;
 }
 
@@ -106,7 +108,7 @@ export async function GET(req: NextRequest) {
       if (price !== null && !isNaN(price)) merged.push({ ...node, price });
     }
 
-    await redis.set('fuel:dataset', { updatedAt: new Date().toISOString(), stations: merged });
+    await kvSet('fuel:dataset', { updatedAt: new Date().toISOString(), stations: merged });
     return NextResponse.json({ status: 'ok', count: merged.length });
   } catch (err: any) {
     return NextResponse.json({ error: 'Fuel sync failed', detail: err?.message }, { status: 500 });

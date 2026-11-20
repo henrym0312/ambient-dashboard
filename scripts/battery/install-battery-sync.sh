@@ -18,7 +18,7 @@ cat << EOF > "$PLIST_PATH"
         <string>$SCRIPT_PATH</string>
     </array>
     <key>StartInterval</key>
-    <integer>30</integer>
+    <integer>120</integer>
     <key>RunAtLoad</key>
     <true/>
     <key>StandardErrorPath</key>

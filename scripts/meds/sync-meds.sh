@@ -8,8 +8,12 @@ HASH_FILE="$CACHE_DIR/meds.md5"
 
 mkdir -p "$CACHE_DIR"
 
-if [[ ! -f "$MEDS_FILE" ]]; then
-  exit 0
+if [[ ! -f "$MEDS_FILE" || ! -r "$MEDS_FILE" ]] || ! (: < "$MEDS_FILE") 2>/dev/null; then
+  if [[ -f "$CACHE_DIR/ADHD_Med_Log.json" && -r "$CACHE_DIR/ADHD_Med_Log.json" ]] && (: < "$CACHE_DIR/ADHD_Med_Log.json") 2>/dev/null; then
+    MEDS_FILE="$CACHE_DIR/ADHD_Med_Log.json"
+  else
+    exit 0
+  fi
 fi
 
 DASHBOARD_API_URL="${DASHBOARD_API_URL:-https://ambient-dashboard-henry-seven.vercel.app}"
