@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isAuthorised, kvGet } from '@/lib/api-auth';
+import { isAuthorised, kvGet, kvSet } from '@/lib/api-auth';
 
 const MPG = 35;
 const TANK_CAPACITY_LITRES = 40;
@@ -16,6 +16,26 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
 }
 
+export async function POST(req: NextRequest) {
+  if (!isAuthorised(req)) {
+    return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
+  }
+
+  try {
+    const body = await req.json();
+    if (!Array.isArray(body.stations)) {
+      return NextResponse.json({ error: 'Invalid payload: stations array required' }, { status: 400 });
+    }
+    await kvSet('fuel:dataset', {
+      updatedAt: new Date().toISOString(),
+      stations: body.stations,
+    });
+    return NextResponse.json({ status: 'ok', count: body.stations.length });
+  } catch (err: any) {
+    return NextResponse.json({ error: 'Fuel upload failed', detail: err?.message }, { status: 500 });
+  }
+}
+
 export async function GET(req: NextRequest) {
   if (!isAuthorised(req)) {
     return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
@@ -28,7 +48,7 @@ export async function GET(req: NextRequest) {
 
     const cached = await kvGet<{ updatedAt: string; stations: any[] }>('fuel:dataset');
     if (!cached || !Array.isArray(cached.stations)) {
-      return NextResponse.json({ error: 'Fuel cache empty; trigger /api/cron/fuel first' }, { status: 503 });
+      return NextResponse.json({ error: 'Fuel cache empty; run Mac sync script first' }, { status: 503 });
     }
 
     const results = cached.stations
