@@ -69,6 +69,7 @@ export interface RmDashboardPayload {
   events: RmCalendarEvent[];
   gold: RmGold;
   reminders: RmReminderItem[];
+  news: string[];
   updatedAt: string;
 }
 

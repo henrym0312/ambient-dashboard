@@ -15,6 +15,7 @@ import {
   Maximize2,
   Minimize2,
   Moon,
+  Newspaper,
   RefreshCw,
   Sun,
   TrendingDown,
@@ -47,6 +48,7 @@ interface RemarkableState {
   events: RmCalendarEvent[];
   gold: RmGold;
   reminders: RmReminderItem[];
+  news: string[];
   updatedAt?: string;
 }
 
@@ -69,6 +71,7 @@ export default function RemarkableDashboardPage() {
     oura: { readiness: '--', sleep: '--', steps: '--', stress: '--', battery: null, history: [] },
     events: [],
     reminders: [],
+    news: [],
     gold: {
       paxgUsdt: 0,
       gbpUsdt: 1.3,
@@ -106,6 +109,7 @@ export default function RemarkableDashboardPage() {
           ...(Array.isArray(json.events) ? { events: json.events } : {}),
           ...(json.gold ? { gold: json.gold } : {}),
           ...(Array.isArray(json.reminders) ? { reminders: json.reminders } : {}),
+          ...(Array.isArray(json.news) ? { news: json.news } : {}),
           ...(json.updatedAt ? { updatedAt: json.updatedAt } : {}),
         }));
         setLastSyncedAt(new Date());
@@ -163,7 +167,7 @@ export default function RemarkableDashboardPage() {
   const remindersModel = useMemo(
     () =>
       now
-        ? selectTopReminders(now, data.reminders || [], 8)
+        ? selectTopReminders(now, data.reminders || [], 10)
         : { items: [], leftToday: 0 },
     [now, data.reminders]
   );
@@ -448,165 +452,44 @@ export default function RemarkableDashboardPage() {
               </div>
             </div>
 
-            {/* WIDGET 5: 7-DAY SLEEP TREND */}
+            {/* WIDGET 5: BBC NEWS BRIEFING */}
             <div className="border-[3px] border-[#111111] bg-white p-6 flex flex-col justify-between flex-1 min-h-0">
-              <div className="flex items-center justify-between border-b-2 border-[#111111] pb-3 shrink-0">
-                <div className="flex items-center gap-2">
-                  <Moon className="w-5 h-5 stroke-[2.5]" />
-                  <span className="text-sm font-extrabold uppercase tracking-[0.18em]">
-                    05 / 7-DAY SLEEP TREND
+              <div>
+                <div className="flex items-center justify-between border-b-2 border-[#111111] pb-3 mb-4 shrink-0">
+                  <div className="flex items-center gap-2">
+                    <Newspaper className="w-5 h-5 stroke-[2.5]" />
+                    <span className="text-sm font-extrabold uppercase tracking-[0.18em]">
+                      05 / BBC NEWS BRIEFING
+                    </span>
+                  </div>
+                  <span className="px-2.5 py-0.5 bg-[#111111] text-white text-xs font-mono font-bold uppercase">
+                    WORLD EDITION
                   </span>
                 </div>
-                <div className="flex items-center gap-2 font-mono text-xs font-bold">
-                  {sleepChart.avgHours && (
-                    <span className="px-2.5 py-1 border-2 border-[#111111] bg-[#FAF9F5]">
-                      {sleepChart.avgHours}H AVG
-                    </span>
-                  )}
-                  {sleepChart.avgScore && (
-                    <span className="px-2.5 py-1 bg-[#111111] text-white">
-                      {sleepChart.avgScore} SCORE
-                    </span>
-                  )}
-                </div>
-              </div>
 
-              <div className="flex-1 flex items-center justify-center pt-4">
-                {sleepChart.points.length > 0 ? (
-                  <svg
-                    viewBox={`0 0 ${sleepChart.width} ${sleepChart.height}`}
-                    className="w-full h-full overflow-visible"
-                  >
-                    {/* 8h Target Dashed Line */}
-                    <line
-                      x1={sleepChart.padLeft - 14}
-                      y1={sleepChart.target8hY}
-                      x2={sleepChart.width - sleepChart.padRight + 14}
-                      y2={sleepChart.target8hY}
-                      stroke="#555555"
-                      strokeWidth="2"
-                      strokeDasharray="6 6"
-                    />
-                    <text
-                      x={sleepChart.width - sleepChart.padRight + 20}
-                      y={sleepChart.target8hY + 5}
-                      fill="#222222"
-                      fontSize="13"
-                      fontWeight="800"
-                      fontFamily="monospace"
-                    >
-                      8H
-                    </text>
-
-                    {/* 6h Reference Line */}
-                    <line
-                      x1={sleepChart.padLeft - 14}
-                      y1={sleepChart.target6hY}
-                      x2={sleepChart.width - sleepChart.padRight + 14}
-                      y2={sleepChart.target6hY}
-                      stroke="#CCCCCC"
-                      strokeWidth="1.5"
-                      strokeDasharray="3 5"
-                    />
-                    <text
-                      x={sleepChart.width - sleepChart.padRight + 20}
-                      y={sleepChart.target6hY + 5}
-                      fill="#777777"
-                      fontSize="12"
-                      fontWeight="700"
-                      fontFamily="monospace"
-                    >
-                      6H
-                    </text>
-
-                    {/* Area Fill */}
-                    <path d={sleepChart.areaD} fill="#E5E4DF" fillOpacity="0.7" />
-
-                    {/* Bold Monochrome Curve */}
-                    <path
-                      d={sleepChart.curveD}
-                      fill="none"
-                      stroke="#111111"
-                      strokeWidth="4.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-
-                    {/* Nodes & Labels */}
-                    {sleepChart.points.map((pt, i) => (
-                      <g key={i}>
-                        <rect
-                          x={pt.x - 30}
-                          y={pt.y - 33}
-                          width="60"
-                          height="20"
-                          rx="3"
-                          fill="#FFFFFF"
-                          stroke="#111111"
-                          strokeWidth="1.5"
-                        />
-                        <text
-                          x={pt.x}
-                          y={pt.y - 19}
-                          textAnchor="middle"
-                          fill="#111111"
-                          fontSize="13.5"
-                          fontWeight="800"
-                          fontFamily="monospace"
-                        >
-                          {pt.timeStr}
-                        </text>
-
-                        {pt.isLatest && (
-                          <circle
-                            cx={pt.x}
-                            cy={pt.y}
-                            r="12"
-                            fill="none"
-                            stroke="#111111"
-                            strokeWidth="2.5"
-                          />
-                        )}
-
-                        <circle
-                          cx={pt.x}
-                          cy={pt.y}
-                          r={pt.isLatest ? 7 : 6}
-                          fill={pt.isLatest ? '#111111' : '#FFFFFF'}
-                          stroke="#111111"
-                          strokeWidth="3.5"
-                        />
-
-                        <text
-                          x={pt.x}
-                          y={sleepChart.bottomY + 28}
-                          textAnchor="middle"
-                          fill="#111111"
-                          fontSize="15"
-                          fontWeight="800"
-                        >
-                          {pt.label}
-                        </text>
-
-                        <text
-                          x={pt.x}
-                          y={sleepChart.bottomY + 48}
-                          textAnchor="middle"
-                          fill="#555555"
-                          fontSize="13"
-                          fontWeight="700"
-                          fontFamily="monospace"
-                        >
-                          {pt.sleepScore > 0 ? `${pt.sleepScore}pt` : '--'}
-                        </text>
-                      </g>
+                {data.news && data.news.length > 0 ? (
+                  <div className="flex flex-col divide-y divide-[#111111]/15">
+                    {data.news.slice(0, 7).map((headline, idx) => (
+                      <div key={idx} className="py-3 flex items-start gap-3.5">
+                        <span className="px-2 py-0.5 border-2 border-[#111111] bg-[#FAF9F5] font-mono text-xs font-extrabold text-[#111111] shrink-0 mt-0.5">
+                          0{idx + 1}
+                        </span>
+                        <p className="text-lg font-bold text-[#111111] leading-snug line-clamp-2">
+                          {headline}
+                        </p>
+                      </div>
                     ))}
-                  </svg>
+                  </div>
                 ) : (
-                  <div className="text-base font-bold text-[#666666]">
-                    No sleep history available
+                  <div className="py-12 text-center text-base font-bold text-[#666666]">
+                    No news headlines available
                   </div>
                 )}
+              </div>
+
+              <div className="pt-2 border-t border-[#111111]/15 flex items-center justify-between text-xs font-mono text-[#555555]">
+                <span>BBC NEWS LIVE RSS</span>
+                <span>TOP 7 HEADLINES</span>
               </div>
             </div>
           </div>

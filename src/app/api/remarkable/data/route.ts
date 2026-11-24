@@ -35,6 +35,7 @@ export async function loadRemarkableData(): Promise<RmDashboardPayload> {
     isProfit: false,
   };
   let reminders: RmReminderItem[] = [];
+  let news: string[] = [];
   let updatedAt = new Date().toISOString();
 
   // If REDIS_URL is configured (e.g. on Vercel), execute route handlers directly in-process.
@@ -48,6 +49,7 @@ export async function loadRemarkableData(): Promise<RmDashboardPayload> {
       if (dashJson.oura) oura = dashJson.oura;
       if (Array.isArray(dashJson.events)) events = dashJson.events;
       if (dashJson.gold) gold = dashJson.gold;
+      if (Array.isArray(dashJson.news)) news = dashJson.news;
       if (dashJson.updatedAt) updatedAt = dashJson.updatedAt;
     }
 
@@ -77,6 +79,7 @@ export async function loadRemarkableData(): Promise<RmDashboardPayload> {
       if (dashJson.oura) oura = dashJson.oura;
       if (Array.isArray(dashJson.events)) events = dashJson.events;
       if (dashJson.gold) gold = dashJson.gold;
+      if (Array.isArray(dashJson.news)) news = dashJson.news;
       if (dashJson.updatedAt) updatedAt = dashJson.updatedAt;
     }
 
@@ -96,6 +99,7 @@ export async function loadRemarkableData(): Promise<RmDashboardPayload> {
     events,
     gold,
     reminders,
+    news,
     updatedAt,
   };
 }

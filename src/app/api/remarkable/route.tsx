@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
     url.searchParams.get('device') === 'rm2' || rotateParam === 'cw' || rotateParam === 'ccw';
   const rotateDir: 'cw' | 'ccw' = rotateParam === 'ccw' ? 'ccw' : 'cw';
 
-  const { weather, oura, events, gold, reminders } = await loadRemarkableData();
+  const { weather, oura, events, gold, reminders, news } = await loadRemarkableData();
 
   const now = new Date();
   const timeString = now.toLocaleTimeString('en-GB', {
@@ -49,9 +49,9 @@ export async function GET(req: NextRequest) {
   const nextEventStatus = getNextEventStatus(now, nextEvent);
   const sleepChart = buildSleepChartModel(oura.history || [], 620, 260);
   const scheduleGroups = groupCalendarEvents(now, events, 5);
-  const remindersModel = selectTopReminders(now, reminders, 8);
-  const leftColReminders = remindersModel.items.slice(0, 4);
-  const rightColReminders = remindersModel.items.slice(4, 8);
+  const remindersModel = selectTopReminders(now, reminders, 10);
+  const leftColReminders = remindersModel.items.slice(0, 5);
+  const rightColReminders = remindersModel.items.slice(5, 10);
 
   const stepsFormatted =
     typeof oura.steps === 'number' ? oura.steps.toLocaleString('en-GB') : String(oura.steps ?? '--');
@@ -524,7 +524,7 @@ export async function GET(req: NextRequest) {
               </div>
             </div>
 
-            {/* WIDGET 5: 7-DAY SLEEP TREND */}
+            {/* WIDGET 5: BBC NEWS BRIEFING */}
             <div
               style={{
                 flex: 1,
@@ -536,48 +536,77 @@ export async function GET(req: NextRequest) {
                 justifyContent: 'space-between',
               }}
             >
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'row',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  borderBottom: '2px solid #111111',
-                  paddingBottom: '12px',
-                }}
-              >
-                <span style={{ fontSize: '16px', fontWeight: 800, letterSpacing: '2px' }}>
-                  05 / 7-DAY SLEEP TREND
-                </span>
-                <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center' }}>
-                  {sleepChart.avgHours && (
-                    <span
-                      style={{
-                        border: '2px solid #111111',
-                        backgroundColor: '#FAF9F5',
-                        padding: '4px 12px',
-                        fontSize: '14px',
-                        fontWeight: 800,
-                        marginRight: '10px',
-                      }}
-                    >
-                      {`${sleepChart.avgHours}H AVG`}
-                    </span>
-                  )}
-                  {sleepChart.avgScore && (
-                    <span
-                      style={{
-                        backgroundColor: '#111111',
-                        color: '#FFFFFF',
-                        padding: '4px 12px',
-                        fontSize: '14px',
-                        fontWeight: 800,
-                      }}
-                    >
-                      {`${sleepChart.avgScore} SCORE`}
-                    </span>
-                  )}
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    borderBottom: '2px solid #111111',
+                    paddingBottom: '12px',
+                    marginBottom: '14px',
+                  }}
+                >
+                  <span style={{ fontSize: '16px', fontWeight: 800, letterSpacing: '2px' }}>
+                    05 / BBC NEWS BRIEFING
+                  </span>
+                  <span
+                    style={{
+                      backgroundColor: '#111111',
+                      color: '#FFFFFF',
+                      padding: '4px 10px',
+                      fontSize: '13px',
+                      fontWeight: 800,
+                    }}
+                  >
+                    WORLD EDITION
+                  </span>
                 </div>
+
+                {news && news.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    {news.slice(0, 7).map((headline, idx) => (
+                      <div
+                        key={idx}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          padding: '15px 4px',
+                          borderBottom: '1px solid #E0E0E0',
+                        }}
+                      >
+                        <span
+                          style={{
+                            border: '2px solid #111111',
+                            backgroundColor: '#FAF9F5',
+                            padding: '4px 9px',
+                            fontSize: '14px',
+                            fontWeight: 800,
+                            marginRight: '14px',
+                          }}
+                        >
+                          {`0${idx + 1}`}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: '20px',
+                            fontWeight: 700,
+                            color: '#111111',
+                            lineHeight: 1.25,
+                          }}
+                        >
+                          {headline.length > 62 ? `${headline.slice(0, 60)}...` : headline}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '18px', fontWeight: 700, color: '#666666', marginTop: '40px' }}>
+                    No news headlines available
+                  </div>
+                )}
               </div>
 
               <div
@@ -585,87 +614,15 @@ export async function GET(req: NextRequest) {
                   display: 'flex',
                   flexDirection: 'row',
                   justifyContent: 'space-between',
-                  alignItems: 'flex-end',
-                  flex: 1,
-                  paddingTop: '28px',
-                  paddingLeft: '8px',
-                  paddingRight: '8px',
+                  borderTop: '2px solid #DDDDDD',
+                  paddingTop: '10px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  color: '#555555',
                 }}
               >
-                {sleepChart.points.length > 0 ? (
-                  sleepChart.points.map((pt, idx) => {
-                    const pct = Math.max(15, Math.min(100, Math.round(((pt.hours || 0) / 9.5) * 100)));
-                    return (
-                      <div
-                        key={idx}
-                        style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'center',
-                          justifyContent: 'flex-end',
-                          height: '100%',
-                          flex: 1,
-                        }}
-                      >
-                        <span
-                          style={{
-                            fontSize: '16px',
-                            fontWeight: 800,
-                            color: '#111111',
-                            marginBottom: '10px',
-                          }}
-                        >
-                          {pt.timeStr}
-                        </span>
-
-                        <div
-                          style={{
-                            width: '58px',
-                            height: '420px',
-                            border: '2px solid #111111',
-                            backgroundColor: '#FAF9F5',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            justifyContent: 'flex-end',
-                            padding: '4px',
-                          }}
-                        >
-                          <div
-                            style={{
-                              width: '100%',
-                              height: `${pct}%`,
-                              backgroundColor: pt.isLatest ? '#111111' : '#444444',
-                            }}
-                          />
-                        </div>
-
-                        <span
-                          style={{
-                            fontSize: '17px',
-                            fontWeight: 800,
-                            color: '#111111',
-                            marginTop: '12px',
-                          }}
-                        >
-                          {pt.label}
-                        </span>
-                        <span
-                          style={{
-                            fontSize: '13px',
-                            fontWeight: 700,
-                            color: '#555555',
-                          }}
-                        >
-                          {pt.sleepScore > 0 ? `${pt.sleepScore}pt` : '--'}
-                        </span>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div style={{ fontSize: '18px', fontWeight: 700, color: '#666666', margin: 'auto' }}>
-                    No sleep history available
-                  </div>
-                )}
+                <span>BBC NEWS LIVE RSS</span>
+                <span>TOP 7 HEADLINES</span>
               </div>
             </div>
           </div>
