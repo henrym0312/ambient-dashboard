@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
   transpilePackages: ["lucide-react"],
   experimental: {
     turbopackPluginRuntimeStrategy: "forceWorkerThreads",
+    agentUpgrade: "security",
   },
   turbopack: {
     root: import.meta.dirname,
