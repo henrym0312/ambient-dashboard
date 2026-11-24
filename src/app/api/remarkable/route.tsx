@@ -1,6 +1,7 @@
 import { ImageResponse } from 'next/og';
-import { NextRequest, connection } from 'next/server';
+import { NextRequest, NextResponse, connection } from 'next/server';
 import { loadRemarkableData } from '@/app/api/remarkable/data/route';
+import { rotatePng90 } from '@/lib/png-rotate';
 import {
   RM_WIDTH,
   RM_HEIGHT,
@@ -24,7 +25,7 @@ export async function GET(req: NextRequest) {
   const rotateParam = url.searchParams.get('rotate'); // 'cw' (90deg) | 'ccw' (-90deg) | null
   const isDeviceBuffer =
     url.searchParams.get('device') === 'rm2' || rotateParam === 'cw' || rotateParam === 'ccw';
-  const rotationDeg = rotateParam === 'ccw' ? '-90deg' : '90deg';
+  const rotateDir: 'cw' | 'ccw' = rotateParam === 'ccw' ? 'ccw' : 'cw';
 
   const { weather, oura, events, gold, reminders } = await loadRemarkableData();
 
@@ -74,7 +75,7 @@ export async function GET(req: NextRequest) {
         fontFamily: 'sans-serif',
       }}
     >
-        {/* TOP HEADER BAR: CLOCK + UP NEXT + WEATHER + GOLD PRICE */}
+        {/* TOP HEADER BAR: DATE + UP NEXT + WEATHER + GOLD PRICE (NO CLOCK) */}
         <div
           style={{
             display: 'flex',
@@ -82,54 +83,57 @@ export async function GET(req: NextRequest) {
             justifyContent: 'space-between',
             alignItems: 'stretch',
             width: '100%',
-            height: '192px',
+            height: '184px',
             borderBottom: '4px solid #111111',
             paddingBottom: '22px',
           }}
         >
-          {/* 1. CLOCK & DATE */}
+          {/* 1. DATE MASTHEAD */}
           <div
             style={{
-              width: '410px',
+              width: '390px',
+              border: '3px solid #111111',
+              backgroundColor: '#111111',
+              color: '#FFFFFF',
+              padding: '18px 22px',
+              marginRight: '20px',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'space-between',
-              paddingRight: '18px',
             }}
           >
-            <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center' }}>
-              <div
-                style={{
-                  backgroundColor: '#111111',
-                  color: '#FFFFFF',
-                  padding: '3px 10px',
-                  fontSize: '13px',
-                  fontWeight: 800,
-                  letterSpacing: '2px',
-                  marginRight: '10px',
-                }}
-              >
-                RM2 E-INK
-              </div>
-              <div style={{ fontSize: '15px', fontWeight: 800, color: '#333333', letterSpacing: '1.5px' }}>
-                {dateString}
-              </div>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                borderBottom: '1.5px solid #444444',
+                paddingBottom: '6px',
+              }}
+            >
+              <span style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2.5px' }}>
+                AMBIENT E-INK
+              </span>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: '#CCCCCC', letterSpacing: '1.5px' }}>
+                DURHAM, UK
+              </span>
             </div>
 
             <div
               style={{
-                fontSize: '96px',
+                fontSize: '34px',
                 fontWeight: 800,
-                lineHeight: 1,
-                letterSpacing: '-3px',
-                color: '#111111',
+                lineHeight: 1.1,
+                letterSpacing: '-0.5px',
+                color: '#FFFFFF',
               }}
             >
-              {timeString}
+              {dateString}
             </div>
 
-            <div style={{ fontSize: '13px', fontWeight: 700, color: '#555555', letterSpacing: '1.5px' }}>
-              DURHAM, UK • LIVE SNAPSHOT
+            <div style={{ fontSize: '12px', fontWeight: 700, color: '#BBBBBB', letterSpacing: '2px' }}>
+              DAILY BRIEFING • LIVE SYNC
             </div>
           </div>
 
@@ -886,7 +890,7 @@ export async function GET(req: NextRequest) {
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', marginRight: '24px' }}>
                       {leftColReminders.map(({ item, meta }, idx) => {
                         const listName = getReminderListLabel(item.list || item.listName).toUpperCase();
-                        const title = (item.title || item.text || 'Untitled').slice(0, 26);
+                        const title = (item.title || item.text || 'Untitled').slice(0, 30);
                         return (
                           <div
                             key={item.id || idx}
@@ -899,24 +903,13 @@ export async function GET(req: NextRequest) {
                               borderBottom: '1px solid #E0E0E0',
                             }}
                           >
-                            <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center' }}>
-                              <div
-                                style={{
-                                  width: '20px',
-                                  height: '20px',
-                                  border: '2.5px solid #111111',
-                                  backgroundColor: '#FFFFFF',
-                                  marginRight: '14px',
-                                }}
-                              />
-                              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                <span style={{ fontSize: '20px', fontWeight: 700, color: '#111111' }}>
-                                  {title}
-                                </span>
-                                <span style={{ fontSize: '12px', fontWeight: 800, color: '#555555' }}>
-                                  {listName}
-                                </span>
-                              </div>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              <span style={{ fontSize: '20px', fontWeight: 700, color: '#111111' }}>
+                                {title}
+                              </span>
+                              <span style={{ fontSize: '12px', fontWeight: 800, color: '#555555' }}>
+                                {listName}
+                              </span>
                             </div>
 
                             {meta.label && (
@@ -946,7 +939,7 @@ export async function GET(req: NextRequest) {
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                       {rightColReminders.map(({ item, meta }, idx) => {
                         const listName = getReminderListLabel(item.list || item.listName).toUpperCase();
-                        const title = (item.title || item.text || 'Untitled').slice(0, 26);
+                        const title = (item.title || item.text || 'Untitled').slice(0, 30);
                         return (
                           <div
                             key={item.id || idx}
@@ -959,24 +952,13 @@ export async function GET(req: NextRequest) {
                               borderBottom: '1px solid #E0E0E0',
                             }}
                           >
-                            <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center' }}>
-                              <div
-                                style={{
-                                  width: '20px',
-                                  height: '20px',
-                                  border: '2.5px solid #111111',
-                                  backgroundColor: '#FFFFFF',
-                                  marginRight: '14px',
-                                }}
-                              />
-                              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                <span style={{ fontSize: '20px', fontWeight: 700, color: '#111111' }}>
-                                  {title}
-                                </span>
-                                <span style={{ fontSize: '12px', fontWeight: 800, color: '#555555' }}>
-                                  {listName}
-                                </span>
-                              </div>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              <span style={{ fontSize: '20px', fontWeight: 700, color: '#111111' }}>
+                                {title}
+                              </span>
+                              <span style={{ fontSize: '12px', fontWeight: 800, color: '#555555' }}>
+                                {listName}
+                              </span>
                             </div>
 
                             {meta.label && (
@@ -1030,49 +1012,27 @@ export async function GET(req: NextRequest) {
       </div>
   );
 
-  if (isDeviceBuffer) {
-    // Physical reMarkable 2 suspended.png buffer is always 1404x1872 (portrait pixels).
-    // Rotating the 1872x1404 landscape canvas by 90deg makes it display in full-screen landscape when the tablet rests horizontally.
-    return new ImageResponse(
-      (
-        <div
-          style={{
-            width: '1404px',
-            height: '1872px',
-            backgroundColor: '#FAF9F5',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            overflow: 'hidden',
-          }}
-        >
-          <div
-            style={{
-              width: '1872px',
-              height: '1404px',
-              display: 'flex',
-              transform: `rotate(${rotationDeg})`,
-            }}
-          >
-            {landscapeCanvas}
-          </div>
-        </div>
-      ),
-      {
-        width: 1404,
-        height: 1872,
-        headers: {
-          'Cache-Control': 'no-store, max-age=0',
-        },
-      }
-    );
-  }
-
-  return new ImageResponse(landscapeCanvas, {
+  const landscapeResponse = new ImageResponse(landscapeCanvas, {
     width: RM_WIDTH,
     height: RM_HEIGHT,
     headers: {
       'Cache-Control': 'no-store, max-age=0',
     },
   });
+
+  if (isDeviceBuffer) {
+    // Rotate the 1872x1404 PNG buffer directly by 90 degrees into a 1404x1872 PNG
+    // so there are zero Satori SVG clipPath white strips on the left or right.
+    const rawBuffer = await landscapeResponse.arrayBuffer();
+    const rotatedBuffer = rotatePng90(rawBuffer, rotateDir);
+    return new NextResponse(new Uint8Array(rotatedBuffer), {
+      status: 200,
+      headers: {
+        'Content-Type': 'image/png',
+        'Cache-Control': 'no-store, max-age=0',
+      },
+    });
+  }
+
+  return landscapeResponse;
 }

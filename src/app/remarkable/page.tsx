@@ -246,23 +246,23 @@ export default function RemarkableDashboardPage() {
           rawMode ? '' : 'shadow-[0_25px_70px_rgba(0,0,0,0.65)] border-4 border-zinc-700'
         }`}
       >
-        {/* TOP HEADER BAR: CLOCK + UP NEXT + WEATHER + GOLD PRICE */}
-        <header className="grid grid-cols-12 gap-5 items-stretch shrink-0 h-[196px] border-b-4 border-[#111111] pb-6">
-          {/* 1. CLOCK & DATE (3 COLS) */}
-          <div className="col-span-3 flex flex-col justify-between pr-2">
-            <div className="flex items-center gap-2.5">
-              <span className="px-2 py-0.5 bg-[#111111] text-white text-[11px] font-extrabold uppercase tracking-[0.2em]">
-                RM2 E-INK
+        {/* TOP HEADER BAR: DATE + UP NEXT + WEATHER + GOLD PRICE (NO CLOCK) */}
+        <header className="grid grid-cols-12 gap-5 items-stretch shrink-0 h-[184px] border-b-4 border-[#111111] pb-6">
+          {/* 1. DATE MASTHEAD (3 COLS) */}
+          <div className="col-span-3 border-[3px] border-[#111111] bg-[#111111] text-white p-5 flex flex-col justify-between">
+            <div className="flex items-center justify-between border-b border-white/25 pb-2">
+              <span className="text-xs font-extrabold uppercase tracking-[0.2em]">
+                AMBIENT E-INK
               </span>
-              <span className="text-sm font-extrabold tracking-[0.14em] text-[#333333] truncate">
-                {dateString}
+              <span className="text-xs font-mono font-bold uppercase text-white/80">
+                DURHAM, UK
               </span>
             </div>
-            <div className="text-[96px] font-extrabold tracking-tighter leading-none tabular-nums text-[#111111]">
-              {timeString}
+            <div className="text-3xl font-extrabold tracking-tight leading-tight uppercase">
+              {dateString}
             </div>
-            <div className="text-xs font-mono font-bold uppercase tracking-widest text-[#555555]">
-              Durham, UK • Live Snapshot
+            <div className="text-xs font-mono uppercase tracking-widest text-white/75">
+              DAILY BRIEFING • LIVE SYNC
             </div>
           </div>
 
@@ -746,7 +746,6 @@ export default function RemarkableDashboardPage() {
                           className="py-2.5 px-2 flex items-center justify-between gap-3 border-b border-[#111111]/15"
                         >
                           <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-5 h-5 border-2 border-[#111111] bg-white shrink-0" />
                             <div className="min-w-0">
                               <div className="text-lg font-bold text-[#111111] truncate leading-snug">
                                 {item.title || item.text}
